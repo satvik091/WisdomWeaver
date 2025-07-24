@@ -15,7 +15,7 @@ def initialize_session_state():
         st.session_state.messages = []
 
     if 'bot' not in st.session_state:
-        api_key = "AIzaSyDJNmx7PKmb92aHcrwBK7L5IKHipNzjVck"  # Replace this with st.secrets["GEMINI_API_KEY"] if using secrets
+        api_key = "AIzaSyDJNmx7PKmb92aHcrwBK7L5IKHipNzjVck" 
         if not api_key:
             st.error("Please set the GEMINI_API_KEY in your Streamlit secrets.")
             st.stop()
@@ -164,7 +164,7 @@ async def main():
 
     with col1:
         st.title("🕉️ Bhagavad Gita Wisdom")
-        st.markdown("Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita.")
+        st.markdown("""Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita.""")
 
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
@@ -211,6 +211,7 @@ async def main():
                 with st.sidebar.expander(f"Verse {verse_num}"):
                     st.markdown(verse_data['translation'])
 
+        # --- New Section for User Question History ---
         st.sidebar.markdown("---")
         st.sidebar.title("Your Questions History")
         user_questions = [msg["content"] for msg in st.session_state.messages if msg["role"] == "user"]
@@ -219,6 +220,9 @@ async def main():
                 st.sidebar.markdown(f"**{i+1}.** {q}")
         else:
             st.sidebar.info("No questions asked yet in this session.")
+            
+        # --- End of New Section ---
+
 
     st.markdown("---")
     st.markdown(
