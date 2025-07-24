@@ -63,15 +63,13 @@ cd gita-gemini-bot
 # Install required Python packages
 pip install -r requirements.txt
 🔑 API Key Configuration
-Option 1 (Recommended):
-Create a file: .streamlit/secrets.toml
+🔑 API Key Configuration
 
-toml
-Copy
-Edit
-GEMINI_API_KEY = "your_api_key_here"
-Option 2 (Temporary):
-Paste your key directly inside the Python file (not safe for production).
+1. Create a `.env` file in the root directory:
+
+```env
+GOOGLE_API_KEY=your_api_key_here
+
 
 ▶️ Run the Application
 bash

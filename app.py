@@ -1,4 +1,3 @@
-
 import requests
 import pandas as pd
 import streamlit as st
@@ -8,6 +7,14 @@ from typing import Dict
 import json
 import asyncio
 from PIL import Image
+import nest_asyncio
+from dotenv import load_dotenv
+
+load_dotenv()
+
+api_key = os.getenv("GOOGLE_API_KEY")
+
+
 
 def initialize_session_state():
     """Initialize Streamlit session state variables."""
@@ -15,9 +22,8 @@ def initialize_session_state():
         st.session_state.messages = []
 
     if 'bot' not in st.session_state:
-        api_key = ""
         if not api_key:
-            st.error("Please set the GEMINI_API_KEY in your Streamlit secrets.")
+            st.error("Please set the GOOGLE_API_KEY in your .env file.")
             st.stop()
         st.session_state.bot = GitaGeminiBot(api_key)
 
@@ -50,14 +56,11 @@ class GitaGeminiBot:
     def format_response(self, raw_text: str) -> Dict:
         """Format the response into a structured dictionary."""
         try:
-            # First attempt: Try to parse as JSON directly
             try:
                 return json.loads(raw_text)
             except json.JSONDecodeError:
-                print("Exception1")
                 pass
 
-            # Second attempt: Try to extract JSON-like content
             if '{' in raw_text and '}' in raw_text:
                 json_start = raw_text.find('{')
                 json_end = raw_text.rfind('}') + 1
@@ -65,10 +68,8 @@ class GitaGeminiBot:
                 try:
                     return json.loads(json_str)
                 except json.JSONDecodeError:
-                    print("Exception1")
                     pass
 
-            # Third attempt: Parse structured text
             lines = raw_text.split('\n')
             response = {
                 "verse_reference": "",
@@ -128,7 +129,7 @@ class GitaGeminiBot:
             Keep the format strict and consistent.
             """
 
-            response = self.model.generate_content(prompt)
+            response = await self.model.generate_content_async(prompt)
 
             if not response.text:
                 raise ValueError("Empty response received from the model")
@@ -145,7 +146,7 @@ class GitaGeminiBot:
                 "application": ""
             }
 
-def main():
+async def main():
     """Main Streamlit application."""
     st.set_page_config(
         page_title="Bhagavad Gita Wisdom Weaver",
@@ -193,7 +194,7 @@ def main():
             st.session_state.messages.append({"role": "user", "content": question})
 
             with st.spinner("Contemplating your question..."):
-                response = asyncio.run(st.session_state.bot.get_response(question))
+                response = await st.session_state.bot.get_response(question)
                 st.session_state.messages.append({
                     "role": "assistant",
                     **response
@@ -225,7 +226,9 @@ def main():
                 st.sidebar.markdown(f"**{i+1}.** {q}")
         else:
             st.sidebar.info("No questions asked yet in this session.")
+            
         # --- End of New Section ---
+
 
     st.markdown("---")
     st.markdown(
@@ -234,4 +237,7 @@ def main():
     )
 
 if __name__ == "__main__":
-    main()
+    nest_asyncio.apply()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(main())
