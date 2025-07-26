@@ -456,7 +456,14 @@ def main():
     col1, col2 = st.columns([3, 2])
 
     with col1:
+        if st.button("🔄 Reset Chat", help="Clear all chat history and start fresh"):
+            for key in ['messages', 'question_history']:
+                if key in st.session_state:
+                    st.session_state[key] = []
+            st.rerun()
+
         st.title("🕉️ Bhagavad Gita Wisdom")
+
         st.markdown("""
         Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita.
         *Personalize your experience using the options above.*
