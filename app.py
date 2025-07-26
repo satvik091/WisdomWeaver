@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Constants
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "add_your_api_key_here")
 GITA_CSV_PATH = "bhagavad_gita_verses.csv"
 IMAGE_PATH = "WhatsApp Image 2024-11-18 at 11.40.34_076eab8e.jpg"
 
@@ -156,6 +156,7 @@ class GitaGeminiBot:
             response["keywords"] = self._extract_keywords(text_content)
 
             return response
+        
 
         except Exception as e:
             st.error(f"Error formatting response: {str(e)}")
@@ -382,6 +383,8 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
+    
+        
 
     # Load and display image
     if os.path.exists(IMAGE_PATH):
@@ -422,6 +425,8 @@ def main():
     col1, col2 = st.columns([2, 1])
 
     with col1:
+        
+
         st.title("🕉️ Bhagavad Gita Wisdom")
         st.markdown("""
         Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita.
@@ -473,6 +478,11 @@ def main():
                 st.rerun()
 
     with col2:
+        if st.button("🔄 Reset Chat", help="Clear all chat history and start fresh"):
+            for key in ['messages', 'question_history']:
+                if key in st.session_state:
+                    st.session_state[key] = []
+            st.rerun()
         render_enhanced_sidebar()
 
     # Enhanced footer
