@@ -17,7 +17,7 @@ load_dotenv()
 # Constants
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY")
 GITA_CSV_PATH = "bhagavad_gita_verses.csv"
-IMAGE_PATH = "WhatsApp Image 2024-11-18 at 11.40.34_076eab8e.jpg"
+IMAGE_PATH = "Public/Images/WhatsApp Image 2024-11-18 at 11.40.34_076eab8e.jpg"
 
 def initialize_session_state():
     """Initialize Streamlit session state variables with better defaults."""
