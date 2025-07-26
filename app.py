@@ -17,7 +17,7 @@ load_dotenv()
 # Constants
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY")
 GITA_CSV_PATH = "bhagavad_gita_verses.csv"
-IMAGE_PATH = "WhatsApp Image 2024-11-18 at 11.40.34_076eab8e.jpg"
+IMAGE_PATH = "Public/Images/WhatsApp Image 2024-11-18 at 11.40.34_076eab8e.jpg"
 
 def initialize_session_state():
     """Initialize Streamlit session state variables with better defaults."""
@@ -84,6 +84,65 @@ class GitaGeminiBot:
                 "translation": row['translation']
             }
         return verses_db
+
+    def format_response(self, raw_text: str) -> Dict:
+        """Enhanced response formatting with better error handling."""
+        try:
+            # Try JSON parsing first
+            if raw_text.strip().startswith('{') and raw_text.strip().endswith('}'):
+                try:
+                    return json.loads(raw_text)
+                except json.JSONDecodeError:
+                    pass
+
+            # Enhanced text parsing
+            response = {
+                "verse_reference": "",
+                "sanskrit": "",
+                "translation": "",
+                "explanation": "",
+                "application": "",
+                "keywords": []
+            }
+
+            lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
+            current_section = None
+            
+            for line in lines:
+                line_lower = line.lower()
+                
+                # Better pattern matching
+                if re.search(r'chapter\s+\d+.*verse\s+\d+', line_lower):
+                    response["verse_reference"] = line
+                elif line_lower.startswith(('sanskrit:', 'verse:')):
+                    response["sanskrit"] = re.sub(r'^(sanskrit:|verse:)\s*', '', line, flags=re.IGNORECASE)
+                elif line_lower.startswith('translation:'):
+                    response["translation"] = re.sub(r'^translation:\s*', '', line, flags=re.IGNORECASE)
+                elif line_lower.startswith(('explanation:', 'meaning:')):
+                    current_section = "explanation"
+                    response["explanation"] = re.sub(r'^(explanation:|meaning:)\s*', '', line, flags=re.IGNORECASE)
+                elif line_lower.startswith(('application:', 'practical:')):
+                    current_section = "application"
+                    response["application"] = re.sub(r'^(application:|practical:)\s*', '', line, flags=re.IGNORECASE)
+                elif current_section and line:
+                    response[current_section] += " " + line
+
+            # Extract keywords for better searchability
+            text_content = f"{response['translation']} {response['explanation']} {response['application']}"
+            response["keywords"] = self._extract_keywords(text_content)
+
+            return response
+
+        except Exception as e:
+            st.error(f"Error formatting response: {str(e)}")
+            return {
+                "verse_reference": "Error in parsing",
+                "sanskrit": "",
+                "translation": raw_text[:500] + "..." if len(raw_text) > 500 else raw_text,
+                "explanation": "Please try rephrasing your question.",
+                "application": "",
+                "keywords": []
+            }
 
     def _get_chapter_summary(self, chapter_num: int) -> str:
         """Get a brief summary for each chapter."""
