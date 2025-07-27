@@ -19,7 +19,7 @@ load_dotenv()
 # Securely loading API key (recommended)
 # IMPORTANT: For production, remove the hardcoded key and rely *only* on .env or Streamlit secrets.
 # You should ideally set this in your .env file or Streamlit secrets.
-os.environ["GOOGLE_API_KEY"] = "your_google_api_key" # Consider removing this line for better security
+os.environ["GOOGLE_API_KEY"] = load_dotenv('GOOGLE_API_KEY') # Consider removing this line for better security
 
 google_api_key = os.environ.get("GOOGLE_API_KEY") # Use .get() for safer access
 
