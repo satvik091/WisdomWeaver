@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Constants
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY")
 GITA_CSV_PATH = "bhagavad_gita_verses.csv"
 IMAGE_PATH = "WhatsApp Image 2024-11-18 at 11.40.34_076eab8e.jpg"
 
@@ -486,7 +486,7 @@ def main():
                     st.session_state[key] = []
             st.rerun()
 
-        st.title("🕉 Bhagavad Gita Wisdom")
+        st.title("🕉️ Bhagavad Gita Wisdom")
         st.markdown("""
         Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita.
         Personalize your experience using the options above.
