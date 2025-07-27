@@ -216,7 +216,7 @@ class GitaGeminiBot:
                 except Exception as e:
                     if attempt == max_retries - 1:
                         raise e
-                    time.sleep(1)  # Brief pause before retry
+                    time.sleep(1)  # Brief pause before retry
 
             if not response.text:
                 raise ValueError("Empty response received from the model")
@@ -453,7 +453,7 @@ def main():
                 "role": "assistant",
                 **response
             })
-            del st.session_state.auto_question  # Clear the auto question
+            del st.session_state.auto_question  # Clear the auto question
             st.rerun()
 
     # Render additional options below image
