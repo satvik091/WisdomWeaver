@@ -1,535 +1,441 @@
-import requests
-import pandas as pd
 import streamlit as st
 import os
-import google.generativeai as genai
-from typing import Dict, List
-import json
-import asyncio
-from PIL import Image
-import time
+import random
+import pandas as pd
 from datetime import datetime
-import re
+from pydantic import BaseModel, Field
+from typing import Optional
+from langchain.output_parsers import PydanticOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.runnables import Runnable
+from PIL import Image
 from dotenv import load_dotenv
 
+# Load environment variables from .env file
 load_dotenv()
 
+os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY") 
+
+google_api_key = os.environ.get("GOOGLE_API_KEY") 
+
+
+if google_api_key is None:
+    st.error("Error: GOOGLE_API_KEY environment variable not set. Please check your .env file or Streamlit secrets.")
+    st.stop() 
+
+st.set_page_config(page_title="🕉️ Gita Wisdom", layout="wide")
+
 # Constants
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY")
 GITA_CSV_PATH = "bhagavad_gita_verses.csv"
 IMAGE_PATH = "WhatsApp Image 2024-11-18 at 11.40.34_076eab8e.jpg"
 
-def initialize_session_state():
-    """Initialize Streamlit session state variables with better defaults."""
-    default_states = {
-        'messages': [],
-        'bot': None,
-        'selected_theme': 'Life Guidance',
-        'question_history': [],
-        'favorite_verses': [],
-        'current_mood': 'Seeking Wisdom',
-        'language_preference': 'English'
-    }
-    
-    for key, default_value in default_states.items():
-        if key not in st.session_state:
-            st.session_state[key] = default_value
-
-    # Initialize bot if not already done
-    if st.session_state.bot is None:
-        if not GEMINI_API_KEY:
-            st.error("Please set the GEMINI_API_KEY in your configuration.")
-            st.stop()
-        st.session_state.bot = GitaGeminiBot(GEMINI_API_KEY)
-
-class GitaGeminiBot:
-    def __init__(self, api_key: str):
-        """Initialize the Gita bot with Gemini API and enhanced features."""
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-2.0-flash')
-        self.verses_db = self.load_gita_database()
-        self.themes = {
-            'Life Guidance': 'guidance for life decisions and personal growth',
-            'Dharma & Ethics': 'understanding of duty, righteousness, and moral conduct',
-            'Spiritual Growth': 'spiritual development and self-realization',
-            'Relationships': 'wisdom for interpersonal relationships and social harmony',
-            'Work & Career': 'guidance for professional life and service',
-            'Inner Peace': 'achieving mental tranquility and emotional balance',
-            'Devotion & Love': 'understanding devotion, love, and surrender'
-        }
-
-    @st.cache_data
-    def load_gita_database(_self) -> Dict:
-        """Load the Bhagavad Gita dataset with caching for better performance."""
-        try:
-            verses_df = pd.read_csv(GITA_CSV_PATH)
-        except FileNotFoundError:
-            st.error(f"Gita database file '{GITA_CSV_PATH}' not found. Please ensure the file is in the correct location.")
-            st.stop()
-        except Exception as e:
-            st.error(f"Error loading Gita database: {str(e)}")
-            st.stop()
-
-        verses_db = {}
-        for _, row in verses_df.iterrows():
-            chapter = f"chapter_{row['chapter_number']}"
-            if chapter not in verses_db:
-                verses_db[chapter] = {
-                    "title": row['chapter_title'],
-                    "verses": {},
-                    "summary": _self._get_chapter_summary(row['chapter_number'])
-                }
-            verse_num = str(row['chapter_verse'])
-            verses_db[chapter]["verses"][verse_num] = {
-                "translation": row['translation']
-            }
-        return verses_db
-
-    def _get_chapter_summary(self, chapter_num: int) -> str:
-        """Get a brief summary for each chapter."""
-        summaries = {
-            1: "Arjuna's moral dilemma and the beginning of Krishna's counsel",
-            2: "The fundamental teachings on the soul, duty, and the path of knowledge",
-            3: "The path of selfless action and karma yoga",
-            4: "Divine knowledge, incarnation, and the evolution of dharma",
-            5: "The harmony between action and renunciation",
-            6: "The practice of meditation and self-control",
-            7: "Knowledge of the Absolute and devotion to the Divine",
-            8: "The imperishable Brahman and the path at the time of death",
-            9: "Royal knowledge and the most confidential wisdom",
-            10: "Divine manifestations and infinite glories",
-            11: "The cosmic vision of the universal form",
-            12: "The path of devotion and love",
-            13: "The field of activity and the knower of the field",
-            14: "The three modes of material nature",
-            15: "The supreme person and the cosmic tree",
-            16: "Divine and demonic natures in human beings",
-            17: "The three divisions of faith and their characteristics",
-            18: "The perfection of renunciation and complete surrender"
-        }
-        return summaries.get(chapter_num, "Eternal wisdom and guidance")
-
-    def format_response(self, raw_text: str) -> Dict:
-        """Enhanced response formatting with better error handling."""
-        try:
-            # Try JSON parsing first
-            if raw_text.strip().startswith('{') and raw_text.strip().endswith('}'):
-                try:
-                    return json.loads(raw_text)
-                except json.JSONDecodeError:
-                    pass
-
-            # Enhanced text parsing
-            response = {
-                "verse_reference": "",
-                "sanskrit": "",
-                "translation": "",
-                "explanation": "",
-                "application": "",
-                "keywords": []
-            }
-
-            lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
-            current_section = None
-            
-            for line in lines:
-                line_lower = line.lower()
-                
-                # Better pattern matching
-                if re.search(r'chapter\s+\d+.*verse\s+\d+', line_lower):
-                    response["verse_reference"] = line
-                elif line_lower.startswith(('sanskrit:', 'verse:')):
-                    response["sanskrit"] = re.sub(r'^(sanskrit:|verse:)\s*', '', line, flags=re.IGNORECASE)
-                elif line_lower.startswith('translation:'):
-                    response["translation"] = re.sub(r'^translation:\s*', '', line, flags=re.IGNORECASE)
-                elif line_lower.startswith(('explanation:', 'meaning:')):
-                    current_section = "explanation"
-                    response["explanation"] = re.sub(r'^(explanation:|meaning:)\s*', '', line, flags=re.IGNORECASE)
-                elif line_lower.startswith(('application:', 'practical:')):
-                    current_section = "application"
-                    response["application"] = re.sub(r'^(application:|practical:)\s*', '', line, flags=re.IGNORECASE)
-                elif current_section and line:
-                    response[current_section] += " " + line
-
-            # Extract keywords for better searchability
-            text_content = f"{response['translation']} {response['explanation']} {response['application']}"
-            response["keywords"] = self._extract_keywords(text_content)
-
-            return response
-
-        except Exception as e:
-            st.error(f"Error formatting response: {str(e)}")
-            return {
-                "verse_reference": "Error in parsing",
-                "sanskrit": "",
-                "translation": raw_text[:500] + "..." if len(raw_text) > 500 else raw_text,
-                "explanation": "Please try rephrasing your question.",
-                "application": "",
-                "keywords": []
-            }
-
-    def _extract_keywords(self, text: str) -> List[str]:
-        """Extract relevant keywords from the response text."""
-        common_gita_keywords = [
-            'dharma', 'karma', 'moksha', 'yoga', 'devotion', 'meditation', 'duty', 
-            'righteousness', 'soul', 'divine', 'surrender', 'detachment', 'wisdom',
-            'knowledge', 'action', 'service', 'love', 'peace', 'truth'
-        ]
+# --- Data Loading ---
+def load_verse_data(path):
+    """Loads Bhagavad Gita verse data from a CSV file."""
+    try:
+        df = pd.read_csv(path)
+    except FileNotFoundError:
+        st.error(f"Error: CSV file not found at {path}. Please ensure the 'try' folder and 'bhagavad_gita_verses.csv' exist.")
+        st.stop()
         
-        text_lower = text.lower()
-        found_keywords = [keyword for keyword in common_gita_keywords if keyword in text_lower]
-        return found_keywords[:5]  # Return top 5 relevant keywords
-
-    async def get_response(self, question: str, theme: str = None, mood: str = None) -> Dict:
-        """Enhanced response generation with theme and mood context."""
+    verses_db = {}
+    for _, row in df.iterrows():
+        chapter_num_str = str(row['chapter_number']).replace('Chapter ', '')
+        
         try:
-            # Build context-aware prompt
-            theme_context = ""
-            if theme and theme in self.themes:
-                theme_context = f"Focus on {self.themes[theme]}. "
-            
-            mood_context = ""
-            if mood:
-                mood_context = f"The user is currently {mood.lower()}. "
-
-            prompt = f"""
-            {theme_context}{mood_context}Based on the Bhagavad Gita's teachings, provide guidance for this question:
-            {question}
-
-            Please format your response exactly like this:
-            Chapter X, Verse Y
-            Sanskrit: [Sanskrit verse if available]
-            Translation: [Clear English translation]
-            Explanation: [Detailed explanation of the verse's meaning and context]
-            Application: [Practical guidance for applying this wisdom in modern life]
-
-            Make the response comprehensive but accessible to modern readers.
-            """
-
-            # Add retry logic for API calls
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    response = self.model.generate_content(prompt)
-                    if response.text:
-                        break
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        raise e
-                    time.sleep(1)  # Brief pause before retry
-
-            if not response.text:
-                raise ValueError("Empty response received from the model")
-
-            formatted_response = self.format_response(response.text)
-            
-            # Add metadata
-            formatted_response["timestamp"] = datetime.now().isoformat()
-            formatted_response["theme"] = theme
-            formatted_response["mood"] = mood
-            
-            return formatted_response
-
-        except Exception as e:
-            st.error(f"Error getting response: {str(e)}")
-            return {
-                "verse_reference": "Service Temporarily Unavailable",
-                "sanskrit": "",
-                "translation": "We're experiencing technical difficulties. Please try again in a moment.",
-                "explanation": "The wisdom of the Gita teaches us patience in times of difficulty.",
-                "application": "Take this moment to practice patience and try your question again.",
-                "keywords": ["patience", "perseverance"],
-                "timestamp": datetime.now().isoformat(),
-                "theme": theme,
-                "mood": mood
+            chapter_key = f"chapter_{int(chapter_num_str)}"
+        except ValueError:
+            st.warning(f"Skipping row due to invalid chapter number format: {row['chapter_number']}")
+            continue
+        
+        full_verse_ref = str(row['chapter_verse'])
+        
+        if chapter_key not in verses_db:
+            verses_db[chapter_key] = {
+                "title": f"Chapter {chapter_num_str}: {row['chapter_title']}",
+                "summary": "",
+                "verses": []
             }
+        
+        verses_db[chapter_key]["verses"].append({
+            "chapter_number": chapter_num_str,
+            "chapter_title": row.get("chapter_title", "N/N"),
+            "chapter_verse": full_verse_ref,
+            "translation": row.get("translation", "N/A"),
+            "sanskrit": row.get("sanskrit_verse", "N/A")
+        })
+    return verses_db
 
-def render_additional_options():
-    """Render additional options below the image."""
-    st.markdown("### 🎯 Personalize Your Spiritual Journey")
-    
-    # Create columns for better layout
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.selectbox(
-            "🎭 Current Mood",
-            ["Seeking Wisdom", "Feeling Confused", "Need Motivation", "Seeking Peace", 
-             "Facing Challenges", "Grateful", "Contemplative"],
-            key="current_mood",
-            help="Your current state of mind helps tailor the guidance"
-        )
-    
-    with col2:
-        st.selectbox(
-            "📚 Focus Theme",
-            list(st.session_state.bot.themes.keys()),
-            key="selected_theme",
-            help="Choose the area where you seek guidance"
-        )
-    
-    with col3:
-        st.selectbox(
-            "🌐 Response Style",
-            ["Detailed", "Concise", "Contemplative", "Practical"],
-            key="response_style",
-            help="How would you like the wisdom to be presented?"
-        )
+# --- LLM Integration ---
+class GitaVerseResponse(BaseModel):
+    verse_reference: str = Field(description="Chapter and verse, e.g., 'Chapter 2, Verse 47'")
+    sanskrit: str = Field(description="Original Sanskrit verse")
+    translation: str = Field(description="English translation of the verse")
+    explanation: str = Field(description="Explanation and context")
+    application: str = Field(description="Practical application")
 
-    # Quick action buttons
-    st.markdown("### ⚡ Quick Actions")
+parser = PydanticOutputParser(pydantic_object=GitaVerseResponse)
+
+prompt = PromptTemplate.from_template(
+    """
+You are a wise assistant trained in the teachings of the Bhagavad Gita.
+Your goal is to provide profound and practical insights from the Bhagavad Gita.
+
+Based on the user's question, identify the most relevant Bhagavad Gita verse (if applicable) and explain its wisdom.
+Ensure the response is structured precisely according to the format instructions.
+Make sure your response does not contain any stray characters, especially 'g' or 'y' at the beginning or end.
+
+User's Question: {input}
+
+{format_instructions}
+""",
+    partial_variables={"format_instructions": parser.get_format_instructions()}
+)
+
+llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.5, google_api_key=google_api_key)
+chain: Runnable = prompt | llm | parser
+
+# --- Session State Initialization ---
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if "bot" not in st.session_state:
+    st.session_state.bot = type("Bot", (), {})()
+    st.session_state.bot.verses_db = load_verse_data(GITA_CSV_PATH)
+    st.session_state.bot.themes = {
+        "Detachment": "freedom from desire",
+        "Karma Yoga": "selfless action",
+        "Bhakti": "devotion",
+        "Jnana": "knowledge",
+        "Dharma": "duty",
+        "Self-Realization": "understanding one's true nature",
+        "Yoga": "union of body, mind, and spirit"
+    }
+
+if "favorite_verses" not in st.session_state:
+    st.session_state.favorite_verses = []
+
+if 'user_input_value' not in st.session_state:
+    st.session_state.user_input_value = ""
+
+# --- Helper Functions ---
+def sort_key_for_verse(verse_data_item):
+    """Helper function to sort verses by chapter and verse number."""
+    verse_str = verse_data_item['chapter_verse']
+    parts = verse_str.split('.')
+    chapter_part = int(parts[0])
     
-    action_col1, action_col2, action_col3, action_col4 = st.columns(4)
-    
-    with action_col1:
-        if st.button("🎲 Random Verse", help="Get a random verse for inspiration"):
-            return "random_verse"
-    
-    with action_col2:
-        if st.button("💭 Daily Reflection", help="Get guidance for daily contemplation"):
-            return "daily_reflection"
-    
-    return None
+    verse_num_str = parts[1] if len(parts) > 1 else '0'
+    if '–' in verse_num_str:
+        try:
+            main_verse_num = int(verse_num_str.split('–')[0].strip())
+        except ValueError:
+            main_verse_num = 0
+    elif '-' in verse_num_str:
+         try:
+            main_verse_num = int(verse_num_str.split('-')[0].strip())
+         except ValueError:
+            main_verse_num = 0
+    else:
+        try:
+            main_verse_num = int(verse_num_str.strip())
+        except ValueError:
+            main_verse_num = 0
+    return (chapter_part, main_verse_num)
 
 def handle_quick_actions(action_type):
-    """Handle quick action button clicks."""
+    """Generates a question based on selected quick action."""
+    if not hasattr(st.session_state.bot, 'verses_db') or not st.session_state.bot.verses_db:
+        st.error("Verse data not loaded, cannot perform quick actions.")
+        return ""
+
     if action_type == "random_verse":
-        # Get random verse
-        import random
         chapters = list(st.session_state.bot.verses_db.keys())
-        random_chapter = random.choice(chapters)
-        verses = list(st.session_state.bot.verses_db[random_chapter]["verses"].keys())
-        random_verse = random.choice(verses)
+        if not chapters:
+            return "No chapters found to pick a random verse from."
         
-        chapter_num = random_chapter.split('_')[1]
-        question = f"Please share the wisdom from Chapter {chapter_num}, Verse {random_verse} and its practical application."
-        return question
-    
+        chapter_key = random.choice(chapters)
+        verses_in_chapter = st.session_state.bot.verses_db[chapter_key]["verses"]
+        if not verses_in_chapter:
+            return f"No verses found in chapter {chapter_key.split('_')[1]}."
+        
+        random_verse_data = random.choice(verses_in_chapter)
+        return (f"Please share the wisdom from Chapter {random_verse_data['chapter_number']}, "
+                f"Verse {random_verse_data['chapter_verse']} and its practical application.")
+
     elif action_type == "daily_reflection":
         today = datetime.now().strftime("%A")
-        question = f"What guidance does the Bhagavad Gita offer for {today}? Please provide a verse for daily reflection and contemplation."
-        return question
-    
-    elif action_type == "verse_search":
-        st.session_state.show_search = True
-        return None
-    
-    elif action_type == "chapter_summary":
-        st.session_state.show_chapter_summary = True
-        return None
-    
-    return None
+        mood = st.session_state.get("current_mood", "seeking wisdom")
+        theme = st.session_state.get("selected_theme", "any relevant theme")
 
+        return (f"What guidance does the Bhagavad Gita offer for {today}, "
+                f"considering a mood of '{mood}' and focusing on the theme of '{theme}'? "
+                f"Please provide a verse for daily reflection and contemplation, along with its practical application.")
+    return ""
+
+def clear_chat_history():
+    """Clears all chat history and the input text field."""
+    st.session_state.messages = []
+    st.session_state.chat_history = []
+    st.session_state.user_input_value = "" # Ensures text input field is cleared
+    st.toast("Chat history cleared!")
+
+def clean_llm_output(text: str) -> str:
+    """Removes common leading/trailing stray characters like 'g', 'y' and excessive whitespace."""
+    # First, trim leading/trailing whitespace including newlines
+    cleaned_text = text.strip()
+
+    # Define characters to potentially remove from the very beginning or end
+    stray_chars = ['g', 'y', 'G', 'Y', '`', '*', '_'] # Add any other common stray chars you observe
+
+    # Remove stray characters from the beginning
+    while cleaned_text and cleaned_text[0] in stray_chars:
+        cleaned_text = cleaned_text[1:].strip()
+
+    # Remove stray characters from the end
+    while cleaned_text and cleaned_text[-1] in stray_chars:
+        cleaned_text = cleaned_text[:-1].strip()
+        
+    return cleaned_text
+
+# --- UI Renderers ---
 def render_enhanced_sidebar():
-    """Enhanced sidebar with better organization - showing ALL verses."""
-    st.sidebar.title("📖 Browse Sacred Texts")
-    
-    # Chapter browser with enhanced info
-    chapters = list(st.session_state.bot.verses_db.keys())
-    selected_chapter = st.sidebar.selectbox(
-        "Select Chapter",
-        chapters,
-        format_func=lambda x: f"Ch. {x.split('_')[1]}: {st.session_state.bot.verses_db[x]['title']}"
-    )
-
-    if selected_chapter:
-        chapter_data = st.session_state.bot.verses_db[selected_chapter]
-        st.sidebar.markdown(f"### {chapter_data['title']}")
-        st.sidebar.markdown(f"*{chapter_data.get('summary', '')}*")
+    """Renders the interactive sidebar for Browse chapters and viewing journey details."""
+    with st.sidebar:
+        st.title("📖 Browse Sacred Texts")
         
-        # Show verse count
-        verse_count = len(chapter_data['verses'])
-        st.sidebar.info(f"📊 {verse_count} verses in this chapter")
-        
-        # Show ALL verses instead of just top 5
-        verses = chapter_data['verses']
-        st.sidebar.markdown("#### All Verses:")
-        
-        # Create a scrollable container for all verses
-        for verse_num, verse_data in verses.items():
-            with st.sidebar.expander(f"Verse {verse_num}"):
-                # Show full translation for shorter verses, truncate longer ones
-                translation = verse_data['translation']
-                if len(translation) > 200:
-                    st.markdown(translation[:200] + "...")
-                else:
-                    st.markdown(translation)
-                
-                # Add a button to use this verse for questioning
-                if st.button(f"Ask about this verse", key=f"ask_verse_{selected_chapter}_{verse_num}"):
-                    chapter_num = selected_chapter.split('_')[1]
-                    question = f"Please explain Chapter {chapter_num}, Verse {verse_num} and its practical application in modern life."
-                    st.session_state.auto_question = question
+        if not hasattr(st.session_state.bot, 'verses_db') or not st.session_state.bot.verses_db:
+            st.info("Loading verse data...")
+            st.session_state.bot.verses_db = load_verse_data(GITA_CSV_PATH)
+            if not st.session_state.bot.verses_db:
+                st.error("Failed to load Bhagavad Gita verses. Please check the CSV file and path.")
+                return
 
-    # Enhanced question history
-    st.sidebar.markdown("---")
-    st.sidebar.title("💭 Your Spiritual Journey")
-    
-    user_questions = [msg["content"] for msg in st.session_state.messages if msg["role"] == "user"]
-    if user_questions:
-        st.sidebar.markdown(f"**Questions Asked:** {len(user_questions)}")
-        
-        # Show recent questions with timestamps
-        for i, q in enumerate(user_questions[-5:], 1):  # Show last 5 questions
-            with st.sidebar.expander(f"Question {len(user_questions) - 5 + i}"):
-                st.markdown(f"*{q}*")
-    else:
-        st.sidebar.info("🌱 Begin your journey by asking a question")
+        chapters = list(st.session_state.bot.verses_db.keys())
+        chapters.sort(key=lambda x: int(x.split('_')[1]))
 
-    # Favorites section (placeholder for future enhancement)
-    st.sidebar.markdown("---")
-    st.sidebar.title("⭐ Favorite Verses")
-    if st.session_state.favorite_verses:
-        for fav in st.session_state.favorite_verses:
-            st.sidebar.markdown(f"• {fav}")
-    else:
-        st.sidebar.info("No favorites saved yet")
+        selected_chapter_key = st.selectbox(
+            "Select Chapter",
+            chapters,
+            format_func=lambda x: f"Ch. {x.split('_')[1]}: {st.session_state.bot.verses_db[x]['title']}"
+        )
 
-def main():
-    """Enhanced main Streamlit application."""
-    st.set_page_config(
-        page_title="Bhagavad Gita Wisdom Weaver",
-        page_icon="🕉️",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-
-    initialize_session_state()
-
-    # Load and display image with reduced width
-    if os.path.exists(IMAGE_PATH):
-        try:
-            image = Image.open(IMAGE_PATH)
-            # Increased max_width from 500 to 850 for larger image
-            max_width = 1800
-            aspect_ratio = image.height / image.width
-            resized_image = image.resize((max_width, int(max_width * aspect_ratio)))
+        if selected_chapter_key:
+            chapter_data = st.session_state.bot.verses_db[selected_chapter_key]
+            st.markdown(f"### {chapter_data['title']}")
+            if chapter_data.get('summary'):
+                st.markdown(f"*{chapter_data.get('summary')}*")
             
-            # Center the image by using columns with better proportions
-            col_img1, col_img2, col_img3 = st.columns([2, 1, 2])
-            with col_img2:
-                st.image(resized_image, use_container_width=True, caption="Bhagavad Gita - Eternal Wisdom")
-        except Exception as e:
-            st.error(f"Error loading image: {str(e)}")
-    else:
-        st.warning("Image file not found. Please ensure the image is in the correct location.")
+            sorted_verses = sorted(chapter_data['verses'], key=sort_key_for_verse)
 
-    initialize_session_state()
+            st.info(f"📊 {len(sorted_verses)} verses in this chapter")
 
-    # Check for auto question from sidebar verse buttons
-    if hasattr(st.session_state, 'auto_question'):
-        st.session_state.messages.append({"role": "user", "content": st.session_state.auto_question})
-        with st.spinner("Contemplating your question..."):
-            response = asyncio.run(st.session_state.bot.get_response(
-                st.session_state.auto_question, 
-                st.session_state.selected_theme,
-                st.session_state.current_mood
-            ))
-            st.session_state.messages.append({
-                "role": "assistant",
-                **response
-            })
-            del st.session_state.auto_question  # Clear the auto question
-            st.rerun()
+            st.markdown("#### All Verses:")
+            for verse_data in sorted_verses:
+                with st.expander(f"Verse {verse_data['chapter_verse']}"):
+                    st.markdown(f"**Chapter:** {verse_data['chapter_number']}")
+                    st.markdown(f"**Verse:** {verse_data['chapter_verse']}")
+                    if verse_data.get('sanskrit') and verse_data['sanskrit'] != "N/A":
+                        st.markdown(f"**Sanskrit:** *{verse_data['sanskrit']}*")
+                    st.markdown(f"**Translation:** {verse_data['translation']}")
+                    
+                    if st.button(f"Ask about {verse_data['chapter_verse']}", key=f"ask_verse_sidebar_{verse_data['chapter_verse']}"):
+                        st.session_state.user_input_value = (
+                            f"Please explain Chapter {verse_data['chapter_number']}, Verse {verse_data['chapter_verse']} "
+                            f"and its practical application in modern life."
+                        )
+                        st.rerun()
 
-    # Render additional options below image
-    quick_action = render_additional_options()
-    
-    # Handle quick actions
-    if quick_action:
-        auto_question = handle_quick_actions(quick_action)
-        if auto_question:
-            st.session_state.messages.append({"role": "user", "content": auto_question})
-            with st.spinner("Contemplating your question..."):
-                response = asyncio.run(st.session_state.bot.get_response(
-                    auto_question, 
-                    st.session_state.selected_theme,
-                    st.session_state.current_mood
-                ))
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    **response
-                })
-                st.rerun()
+        st.markdown("---")
+        st.title("💭 Your Spiritual Journey")
+        user_qs = [m["content"] for m in st.session_state.messages if m["role"] == "user"]
+        if user_qs:
+            for i, q in enumerate(user_qs[-5:], 1):
+                with st.expander(f"Question {len(user_qs) - len(user_qs[-5:]) + i}"):
+                    st.markdown(f"*{q}*")
+        else:
+            st.info("No questions asked yet.")
 
-    # Main content area - adjusted column widths: wider sidebar, narrower main content
-    col1, col2 = st.columns([3, 2])
+        st.markdown("---")
+        st.title("⭐ Favorite Verses")
+        if st.session_state.favorite_verses:
+            for fav in st.session_state.favorite_verses:
+                st.markdown(f"• {fav}")
+        else:
+            st.info("No favorites saved yet. (Feature coming soon!)")
+
+def render_additional_options():
+    """Renders personalization options and quick action buttons."""
+    st.markdown("### 🎯 Personalize Your Spiritual Journey")
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button("🔄 Reset Chat", help="Clear all chat history and start fresh"):
-            for key in ['messages', 'question_history']:
-                if key in st.session_state:
-                    st.session_state[key] = []
-            st.rerun()
-
-        st.title("🕉️ Bhagavad Gita Wisdom")
-
-        st.markdown("""
-        Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita.
-        *Personalize your experience using the options above.*
-        """)
-
-        # Enhanced message display
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                if message["role"] == "user":
-                    st.markdown(message["content"])
-                else:
-                    # Enhanced assistant message display
-                    if message.get("verse_reference"):
-                        st.markdown(f"**📖 {message['verse_reference']}**")
-                    
-                    if message.get('sanskrit'):
-                        st.markdown(f"*Sanskrit:* {message['sanskrit']}")
-                    
-                    if message.get('translation'):
-                        st.markdown(f"**Translation:** {message['translation']}")
-                    
-                    if message.get('explanation'):
-                        st.markdown("### 🧠 Understanding")
-                        st.markdown(message["explanation"])
-                    
-                    if message.get('application'):
-                        st.markdown("### 🌟 Modern Application")
-                        st.markdown(message["application"])
-                    
-                    # Show keywords if available
-                    if message.get('keywords'):
-                        st.markdown("**Key Concepts:** " + " • ".join([f"`{kw}`" for kw in message['keywords']]))
-
-        # Enhanced chat input
-        if question := st.chat_input("Ask your question here..."):
-            st.session_state.messages.append({"role": "user", "content": question})
-
-            with st.spinner("🧘 Contemplating your question..."):
-                response = asyncio.run(st.session_state.bot.get_response(
-                    question,
-                    st.session_state.selected_theme,
-                    st.session_state.current_mood
-                ))
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    **response
-                })
-                st.rerun()
+        st.selectbox("🎭 Current Mood", ["Seeking Wisdom", "Feeling Confused", "Need Motivation", "Seeking Peace",
+            "Facing Challenges", "Grateful", "Contemplative"], key="current_mood")
 
     with col2:
-        render_enhanced_sidebar()
+        st.selectbox("📚 Focus Theme", list(st.session_state.bot.themes.keys()), key="selected_theme")
 
-    # Enhanced footer
-    st.markdown("---")
-    st.markdown(
-        """
-        💫 **About This Application**
-        
-        This application uses Google's Gemini AI to provide insights from the Bhagavad Gita. 
-        The wisdom shared here is meant for reflection and guidance. For deeper spiritual 
-        understanding, please consult with qualified spiritual teachers and study the 
-        original texts.
-        
-        *Built with ❤️ for spiritual seekers everywhere*
-        """
+    with col3:
+        st.selectbox("🌐 Response Style", ["Detailed", "Concise", "Contemplative", "Practical"], key="response_style")
+
+    st.markdown("### ⚡ Quick Actions")
+    action_col1, action_col2, _, _ = st.columns(4)
+
+    with action_col1:
+        if st.button("🎲 Random Verse"):
+            st.session_state.user_input_value = handle_quick_actions("random_verse")
+            st.rerun()
+    with action_col2:
+        if st.button("💭 Daily Reflection"):
+            st.session_state.user_input_value = handle_quick_actions("daily_reflection")
+            st.rerun()
+
+# --- MAIN APP LAYOUT AND LOGIC ---
+
+# Apply custom CSS for a rounder input field and buttons
+st.markdown(
+    """
+    <style>
+    /* Targeting the input element within the text input widget */
+    div.stTextInput > label > div > div > input {
+        border-radius: 20px !important;
+        padding: 10px 15px !important;
+        border: 1px solid #d3d3d3;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    /* To round the button as well */
+    div.stButton > button {
+        border-radius: 20px !important;
+        padding: 10px 20px !important;
+    }
+    /* CSS for centering the image */
+    .centered-image {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Image above title, centered
+col_left, col_center, col_right = st.columns([1,2,1]) 
+
+with col_center:
+    try:
+        st.image(IMAGE_PATH, width=200) # Adjust width as needed
+    except FileNotFoundError:
+        st.warning(f"Image not found at {IMAGE_PATH}. Please ensure the file exists.")
+
+st.title("🕉️ Bhagavad Gita Wisdom Weaver")
+
+# Render sidebar
+render_enhanced_sidebar()
+
+# Static Personalization Options at the Top of Main Content
+render_additional_options()
+
+# Chat History Display Area Placeholder
+chat_history_placeholder = st.empty()
+
+# Input and Button Section
+col1, col2 = st.columns([8, 1]) 
+
+with col1:
+    user_query = st.text_input(
+        "🙏 Ask about the Gita:",
+        value=st.session_state.user_input_value, # This links the input to session_state
+        key="main_input",
+        placeholder="Type your question here...",
     )
 
-if __name__ == "__main__":
-    main()
+with col2:
+    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True) 
+    submit_button = st.button("Ask")
+
+# Submission Logic
+if submit_button and user_query:
+    st.session_state.messages.append({"role": "user", "content": user_query})
+    st.session_state.chat_history.append(("You", user_query))
+
+    with st.spinner("Meditating on the verses..."):
+        try:
+            mood = st.session_state.get("current_mood", "neutral")
+            theme = st.session_state.get("selected_theme", "general wisdom")
+            response_style = st.session_state.get("response_style", "detailed")
+
+            full_prompt_input = (
+                f"User's mood: {mood}. Focus theme: {theme}. Response style: {response_style}.\n\n"
+                f"Question: {user_query}"
+            )
+
+            result: GitaVerseResponse = chain.invoke({"input": full_prompt_input})
+            
+            # Apply cleaning to each field before forming the final response text
+            cleaned_verse_reference = clean_llm_output(result.verse_reference)
+            cleaned_sanskrit = clean_llm_output(result.sanskrit)
+            cleaned_translation = clean_llm_output(result.translation)
+            cleaned_explanation = clean_llm_output(result.explanation)
+            cleaned_application = clean_llm_output(result.application)
+
+            response_text = f"""
+📖 **{cleaned_verse_reference}**
+
+🕉️ **Sanskrit:** {cleaned_sanskrit}
+
+🌐 **Translation:** {cleaned_translation}
+
+🧠 **Explanation:** {cleaned_explanation}
+
+💡 **Application:** {cleaned_application}
+""".strip()
+            
+            # One final pass over the whole response text just in case
+            response_text = clean_llm_output(response_text)
+
+            st.session_state.messages.append({"role": "assistant", "content": response_text})
+            st.session_state.chat_history.append(("GitaBot", response_text))
+
+        except Exception as e:
+            st.error(f"Error invoking the wisdom: {e}. Please try again or rephrase your question.")
+            st.error(f"Detailed error: {e}")
+
+    st.session_state.user_input_value = ""
+    st.rerun() 
+
+# Display Chat History
+with chat_history_placeholder.container():
+    st.markdown("---")
+    
+    if st.button("🔄 Reset History", on_click=clear_chat_history, key="reset_history_button"):
+        pass
+
+    st.markdown("## 🗣️ Chat History")
+    for i, (sender, msg) in enumerate(reversed(st.session_state.chat_history)):
+        with st.chat_message(name=sender):
+            st.markdown(msg, unsafe_allow_html=True)
+            if sender == "GitaBot":
+                if msg not in st.session_state.favorite_verses:
+                    if st.button("⭐ Save to Favorites", key=f"fav_btn_{i}"):
+                        st.session_state.favorite_verses.append(msg)
+                        st.toast("Verse added to favorites!")
+                        st.rerun()
+
+# --- ABOUT THIS APPLICATION (at the very bottom) ---
+st.markdown("---") # Optional separator
+st.markdown(
+    """
+    <div style="text-align: center; margin-top: 100px; font-size: big; color: grey;">
+    💫 About This Application<br>
+    This application uses Google's Gemini AI to provide insights from the Bhagavad Gita. The wisdom shared here is meant for reflection and guidance. For deeper spiritual understanding, please consult with qualified spiritual teachers and study the original texts.<br>
+    Built with ❤️ for spiritual seekers everywhere
+    </div>
+    """,
+    unsafe_allow_html=True
+)
