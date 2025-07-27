@@ -216,7 +216,7 @@ class GitaGeminiBot:
                 except Exception as e:
                     if attempt == max_retries - 1:
                         raise e
-                    time.sleep(1)  # Brief pause before retry
+                    time.sleep(1)  # Brief pause before retry
 
             if not response.text:
                 raise ValueError("Empty response received from the model")
@@ -321,7 +321,7 @@ def handle_quick_actions(action_type):
     return None
 
 def render_enhanced_sidebar():
-    """Enhanced sidebar with better organization."""
+    """Enhanced sidebar with better organization - showing ALL verses."""
     st.sidebar.title("📖 Browse Sacred Texts")
     
     # Chapter browser with enhanced info
@@ -341,14 +341,25 @@ def render_enhanced_sidebar():
         verse_count = len(chapter_data['verses'])
         st.sidebar.info(f"📊 {verse_count} verses in this chapter")
         
-        # Expandable verses
+        # Show ALL verses with an expander
         verses = chapter_data['verses']
-        for verse_num, verse_data in list(verses.items())[:5]:
-            with st.sidebar.expander(f"Verse {verse_num}"):
-                st.markdown(verse_data['translation'][:150] + "..." if len(verse_data['translation']) > 150 else verse_data['translation'])
+        st.sidebar.markdown("#### All Verses:")
         
-        if len(verses) > 5:
-            st.sidebar.info(f"+ {len(verses) - 5} more verses in this chapter")
+        # Create a scrollable container for all verses
+        for verse_num, verse_data in verses.items():
+            with st.sidebar.expander(f"Verse {verse_num}"):
+                # Show full translation for shorter verses, truncate longer ones
+                translation = verse_data['translation']
+                if len(translation) > 200:
+                    st.markdown(translation[:200] + "...")
+                else:
+                    st.markdown(translation)
+                
+                # Add a button to use this verse for questioning
+                if st.button(f"Ask about this verse", key=f"ask_verse_{selected_chapter}_{verse_num}"):
+                    chapter_num = selected_chapter.split('_')[1]
+                    question = f"Please explain Chapter {chapter_num}, Verse {verse_num} and its practical application in modern life."
+                    st.session_state.auto_question = question
 
     # Enhanced question history
     st.sidebar.markdown("---")
@@ -408,20 +419,42 @@ def main():
         initial_sidebar_state="expanded"
     )
 
-    # Load and display image
+    initialize_session_state()
+
+    # Load and display image with reduced width
     if os.path.exists(IMAGE_PATH):
         try:
             image = Image.open(IMAGE_PATH)
-            max_width = 800
+            max_width = 1800
             aspect_ratio = image.height / image.width
             resized_image = image.resize((max_width, int(max_width * aspect_ratio)))
-            st.image(resized_image, use_container_width=True, caption="Bhagavad Gita - Eternal Wisdom")
+            
+            # Center the image by using columns with better proportions
+            col_img1, col_img2, col_img3 = st.columns([2, 1, 2])
+            with col_img2:
+                st.image(resized_image, use_container_width=True, caption="Bhagavad Gita - Eternal Wisdom")
         except Exception as e:
             st.error(f"Error loading image: {str(e)}")
     else:
         st.warning("Image file not found. Please ensure the image is in the correct location.")
 
     initialize_session_state()
+
+    # Check for auto question from sidebar verse buttons
+    if hasattr(st.session_state, 'auto_question'):
+        st.session_state.messages.append({"role": "user", "content": st.session_state.auto_question})
+        with st.spinner("Contemplating your question..."):
+            response = asyncio.run(st.session_state.bot.get_response(
+                st.session_state.auto_question, 
+                st.session_state.selected_theme,
+                st.session_state.current_mood
+            ))
+            st.session_state.messages.append({
+                "role": "assistant",
+                **response
+            })
+            del st.session_state.auto_question  # Clear the auto question
+            st.rerun()
 
     # Render additional options below image
     quick_action = render_additional_options()
@@ -443,10 +476,16 @@ def main():
                 })
                 st.rerun()
 
-    # Main content area
-    col1, col2 = st.columns([2, 1])
+    # Main content area - adjusted column widths: wider sidebar, narrower main content
+    col1, col2 = st.columns([3, 2])
 
     with col1:
+        if st.button("🔄 Reset Chat", help="Clear all chat history and start fresh"):
+            for key in ['messages', 'question_history']:
+                if key in st.session_state:
+                    st.session_state[key] = []
+            st.rerun()
+
         st.title("🕉 Bhagavad Gita Wisdom")
         st.markdown("""
         Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita.
