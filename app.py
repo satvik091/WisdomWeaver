@@ -5,7 +5,6 @@ import os
 import google.generativeai as genai
 from typing import Dict, List
 import json
-import asyncio
 from PIL import Image
 import time
 from datetime import datetime
@@ -28,7 +27,8 @@ def initialize_session_state():
         'question_history': [],
         'favorite_verses': [],
         'current_mood': 'Seeking Wisdom',
-        'language_preference': 'English'
+        'language_preference': 'English',
+        'response_style': 'Detailed' # Added this
     }
     
     for key, default_value in default_states.items():
@@ -180,20 +180,17 @@ class GitaGeminiBot:
         found_keywords = [keyword for keyword in common_gita_keywords if keyword in text_lower]
         return found_keywords[:5]
 
-    async def get_response(self, question: str, theme: str = None, mood: str = None) -> Dict:
-        """Enhanced response generation with theme and mood context."""
+    def get_response(self, question: str, theme: str = None, mood: str = None, style: str = 'Detailed') -> Dict:
+        """Enhanced response generation with theme, mood, and style context."""
         try:
             # Build context-aware prompt
-            theme_context = ""
-            if theme and theme in self.themes:
-                theme_context = f"Focus on {self.themes[theme]}. "
-            
-            mood_context = ""
-            if mood:
-                mood_context = f"The user is currently {mood.lower()}. "
+            theme_context = f"The user is seeking guidance on the theme of {self.themes[theme]}. " if theme and theme in self.themes else ""
+            mood_context = f"The user's current mood is {mood.lower()}. " if mood else ""
+            style_context = f"The response style should be {style.lower()}. " if style else ""
 
             prompt = f"""
-            {theme_context}{mood_context}Based on the Bhagavad Gita's teachings, provide guidance for this question:
+            {theme_context}{mood_context}{style_context}
+            Based on the Bhagavad Gita's teachings, provide guidance for this question:
             {question}
 
             Please format your response exactly like this:
@@ -227,6 +224,7 @@ class GitaGeminiBot:
             formatted_response["timestamp"] = datetime.now().isoformat()
             formatted_response["theme"] = theme
             formatted_response["mood"] = mood
+            formatted_response["style"] = style
             
             return formatted_response
 
@@ -279,7 +277,7 @@ def render_additional_options():
     # Quick action buttons
     st.markdown("### ⚡ Quick Actions")
     
-    action_col1, action_col2, action_col3, action_col4 = st.columns(4)
+    action_col1, action_col2 = st.columns(2)
     
     with action_col1:
         if st.button("🎲 Random Verse", help="Get a random verse for inspiration"):
@@ -309,14 +307,6 @@ def handle_quick_actions(action_type):
         today = datetime.now().strftime("%A")
         question = f"What guidance does the Bhagavad Gita offer for {today}? Please provide a verse for daily reflection and contemplation."
         return question
-    
-    elif action_type == "verse_search":
-        st.session_state.show_search = True
-        return None
-    
-    elif action_type == "chapter_summary":
-        st.session_state.show_chapter_summary = True
-        return None
     
     return None
 
@@ -360,6 +350,7 @@ def render_enhanced_sidebar():
                     chapter_num = selected_chapter.split('_')[1]
                     question = f"Please explain Chapter {chapter_num}, Verse {verse_num} and its practical application in modern life."
                     st.session_state.auto_question = question
+                    st.rerun()
 
     # Enhanced question history
     st.sidebar.markdown("---")
@@ -438,62 +429,43 @@ def main():
     else:
         st.warning("Image file not found. Please ensure the image is in the correct location.")
 
-    initialize_session_state()
-
-    # Check for auto question from sidebar verse buttons
-    if hasattr(st.session_state, 'auto_question'):
-        st.session_state.messages.append({"role": "user", "content": st.session_state.auto_question})
-        with st.spinner("Contemplating your question..."):
-            response = asyncio.run(st.session_state.bot.get_response(
-                st.session_state.auto_question, 
-                st.session_state.selected_theme,
-                st.session_state.current_mood
-            ))
-            st.session_state.messages.append({
-                "role": "assistant",
-                **response
-            })
-            del st.session_state.auto_question  # Clear the auto question
-            st.rerun()
-
     # Render additional options below image
     quick_action = render_additional_options()
     
-    # Handle quick actions
-    if quick_action:
-        auto_question = handle_quick_actions(quick_action)
-        if auto_question:
-            st.session_state.messages.append({"role": "user", "content": auto_question})
-            with st.spinner("Contemplating your question..."):
-                response = asyncio.run(st.session_state.bot.get_response(
-                    auto_question, 
-                    st.session_state.selected_theme,
-                    st.session_state.current_mood
-                ))
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    **response
-                })
-                st.rerun()
+    # Main content area setup
+    main_col, sidebar_col = st.columns([3, 2])
 
-    # Main content area - adjusted column widths: wider sidebar, narrower main content
-    col1, col2 = st.columns([3, 2])
-
-    with col1:
-        if st.button("🔄 Reset Chat", help="Clear all chat history and start fresh"):
-            for key in ['messages', 'question_history']:
-                if key in st.session_state:
-                    st.session_state[key] = []
-            st.rerun()
-
+    with main_col:
         st.title("🕉️ Bhagavad Gita Wisdom")
         st.markdown("""
         Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita.
         Personalize your experience using the options above.
         """)
 
-        # This section below is where the conflicts were. I have merged your code with a change from 'main'.
-        # Your download button code is kept and is now below the main chat messages.
+        # Handle quick actions and auto-questions
+        auto_question = None
+        if quick_action:
+            auto_question = handle_quick_actions(quick_action)
+        elif hasattr(st.session_state, 'auto_question'):
+            auto_question = st.session_state.auto_question
+            del st.session_state.auto_question
+
+        if auto_question:
+            st.session_state.messages.append({"role": "user", "content": auto_question})
+            with st.spinner("Contemplating your question..."):
+                response = st.session_state.bot.get_response(
+                    auto_question, 
+                    st.session_state.selected_theme,
+                    st.session_state.current_mood,
+                    st.session_state.get('response_style', 'Detailed')
+                )
+                st.session_state.messages.append({"role": "assistant", **response})
+            st.rerun()
+
+        if st.button("🔄 Reset Chat", help="Clear all chat history and start fresh"):
+            st.session_state.messages = []
+            st.rerun()
+
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 if message["role"] == "user":
@@ -538,20 +510,17 @@ def main():
         # Enhanced chat input
         if question := st.chat_input("Ask your question here..."):
             st.session_state.messages.append({"role": "user", "content": question})
-
             with st.spinner("🧘 Contemplating your question..."):
-                response = asyncio.run(st.session_state.bot.get_response(
+                response = st.session_state.bot.get_response(
                     question,
                     st.session_state.selected_theme,
-                    st.session_state.current_mood
-                ))
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    **response
-                })
-                st.rerun()
+                    st.session_state.current_mood,
+                    st.session_state.get('response_style', 'Detailed')
+                )
+                st.session_state.messages.append({"role": "assistant", **response})
+            st.rerun()
 
-    with col2:
+    with sidebar_col:
         render_enhanced_sidebar()
 
     # Enhanced footer
