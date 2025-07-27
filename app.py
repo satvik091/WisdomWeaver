@@ -453,7 +453,8 @@ def main():
         Personalize your experience using the options above.
         """)
 
-        # Enhanced message display
+        # This section below is where the conflicts were. I have merged your code with a change from 'main'.
+        # Your download button code is kept and is now below the main chat messages.
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 if message["role"] == "user":
