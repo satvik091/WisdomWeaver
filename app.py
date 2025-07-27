@@ -178,7 +178,7 @@ class GitaGeminiBot:
         
         text_lower = text.lower()
         found_keywords = [keyword for keyword in common_gita_keywords if keyword in text_lower]
-        return found_keywords[:5]  # Return top 5 relevant keywords
+        return found_keywords[:5]
 
     async def get_response(self, question: str, theme: str = None, mood: str = None) -> Dict:
         """Enhanced response generation with theme and mood context."""
@@ -335,7 +335,7 @@ def render_enhanced_sidebar():
     if selected_chapter:
         chapter_data = st.session_state.bot.verses_db[selected_chapter]
         st.sidebar.markdown(f"### {chapter_data['title']}")
-        st.sidebar.markdown(f"*{chapter_data.get('summary', '')}*")
+        st.sidebar.markdown(f"{chapter_data.get('summary', '')}")
         
         # Show verse count
         verse_count = len(chapter_data['verses'])
@@ -343,7 +343,7 @@ def render_enhanced_sidebar():
         
         # Expandable verses
         verses = chapter_data['verses']
-        for verse_num, verse_data in list(verses.items())[:5]:  # Show first 5 verses
+        for verse_num, verse_data in list(verses.items())[:5]:
             with st.sidebar.expander(f"Verse {verse_num}"):
                 st.markdown(verse_data['translation'][:150] + "..." if len(verse_data['translation']) > 150 else verse_data['translation'])
         
@@ -356,12 +356,12 @@ def render_enhanced_sidebar():
     
     user_questions = [msg["content"] for msg in st.session_state.messages if msg["role"] == "user"]
     if user_questions:
-        st.sidebar.markdown(f"**Questions Asked:** {len(user_questions)}")
+        st.sidebar.markdown(f"*Questions Asked:* {len(user_questions)}")
         
         # Show recent questions with timestamps
-        for i, q in enumerate(user_questions[-5:], 1):  # Show last 5 questions
+        for i, q in enumerate(user_questions[-5:], 1):
             with st.sidebar.expander(f"Question {len(user_questions) - 5 + i}"):
-                st.markdown(f"*{q}*")
+                st.markdown(f"{q}")
     else:
         st.sidebar.info("🌱 Begin your journey by asking a question")
 
@@ -374,11 +374,36 @@ def render_enhanced_sidebar():
     else:
         st.sidebar.info("No favorites saved yet")
 
+def get_chat_history_as_text():
+    history = st.session_state.get('messages', [])
+    text = ""
+    for message in history:
+        if message["role"] == "user":
+            text += f"User: {message['content']}\n\n"
+        elif message["role"] == "assistant":
+            # Format the assistant's detailed response
+            formatted_response = ""
+            if message.get("verse_reference"):
+                formatted_response += f"📖 {message['verse_reference']}\n"
+            if message.get('sanskrit'):
+                formatted_response += f"Sanskrit: {message['sanskrit']}\n"
+            if message.get('translation'):
+                formatted_response += f"Translation: {message['translation']}\n"
+            if message.get('explanation'):
+                formatted_response += f"Understanding: {message['explanation']}\n"
+            if message.get('application'):
+                formatted_response += f"Modern Application: {message['application']}\n"
+            if message.get('keywords'):
+                formatted_response += f"Key Concepts: {' • '.join(message['keywords'])}\n"
+            text += f"WisdomWeaver:\n{formatted_response}\n"
+    
+    return text
+
 def main():
     """Enhanced main Streamlit application."""
     st.set_page_config(
         page_title="Bhagavad Gita Wisdom Weaver",
-        page_icon="🕉️",
+        page_icon="🕉",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -422,10 +447,10 @@ def main():
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        st.title("🕉️ Bhagavad Gita Wisdom")
+        st.title("🕉 Bhagavad Gita Wisdom")
         st.markdown("""
         Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita.
-        *Personalize your experience using the options above.*
+        Personalize your experience using the options above.
         """)
 
         # Enhanced message display
@@ -436,13 +461,13 @@ def main():
                 else:
                     # Enhanced assistant message display
                     if message.get("verse_reference"):
-                        st.markdown(f"**📖 {message['verse_reference']}**")
+                        st.markdown(f"📖 {message['verse_reference']}")
                     
                     if message.get('sanskrit'):
-                        st.markdown(f"*Sanskrit:* {message['sanskrit']}")
+                        st.markdown(f"Sanskrit: {message['sanskrit']}")
                     
                     if message.get('translation'):
-                        st.markdown(f"**Translation:** {message['translation']}")
+                        st.markdown(f"*Translation:* {message['translation']}")
                     
                     if message.get('explanation'):
                         st.markdown("### 🧠 Understanding")
@@ -454,7 +479,21 @@ def main():
                     
                     # Show keywords if available
                     if message.get('keywords'):
-                        st.markdown("**Key Concepts:** " + " • ".join([f"`{kw}`" for kw in message['keywords']]))
+                        st.markdown("*Key Concepts:* " + " • ".join([f"{kw}" for kw in message['keywords']]))
+
+        # Add the download button
+        chat_text_to_download = get_chat_history_as_text()
+        if chat_text_to_download:
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"WisdomWeaver_Chat_{timestamp}.txt"
+            
+            st.download_button(
+                label="Download Chat History",
+                data=chat_text_to_download,
+                file_name=filename,
+                mime="text/plain",
+                key="download_chat_button"
+            )
 
         # Enhanced chat input
         if question := st.chat_input("Ask your question here..."):
@@ -479,14 +518,14 @@ def main():
     st.markdown("---")
     st.markdown(
         """
-        💫 **About This Application**
+        💫 *About This Application*
         
         This application uses Google's Gemini AI to provide insights from the Bhagavad Gita. 
         The wisdom shared here is meant for reflection and guidance. For deeper spiritual 
         understanding, please consult with qualified spiritual teachers and study the 
         original texts.
         
-        *Built with ❤️ for spiritual seekers everywhere*
+        Built with ❤ for spiritual seekers everywhere
         """
     )
 
