@@ -1,4 +1,3 @@
-
 import requests
 import pandas as pd
 import streamlit as st
@@ -778,12 +777,20 @@ def main():
             )
 
         # Enhanced chat input
-        if question := st.chat_input("Ask your question here..."):
-            st.session_state.messages.append({"role": "user", "content": question})
+        if "submission_in_progress" not in st.session_state:
+            st.session_state.submission_in_progress = False
 
+        if not st.session_state.submission_in_progress:
+            question = st.chat_input("Ask your question here...")
+            if question:
+                st.session_state.messages.append({"role": "user", "content": question})
+                st.session_state.submission_in_progress = True
+                st.rerun()
+        else:
             with st.spinner("🧘 Contemplating your question..."):
+                last_user_msg = st.session_state.messages[-1]["content"]
                 response = asyncio.run(st.session_state.bot.get_response(
-                    question,
+                    last_user_msg,
                     st.session_state.selected_theme,
                     st.session_state.current_mood,
                     dominant_emotion()
@@ -792,6 +799,7 @@ def main():
                     "role": "assistant",
                     **response
                 })
+                st.session_state.submission_in_progress = False
                 st.rerun()
 
         with col2:
@@ -829,4 +837,4 @@ In every era, humanity has faced the same questions: Who am I? What is my purpos
 
 
 if __name__ == "__main__":
-    main() 
+    main()
