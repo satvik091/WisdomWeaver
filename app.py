@@ -26,6 +26,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY")
 GITA_CSV_PATH = "bhagavad_gita_verses.csv"
 IMAGE_PATH = "Public/Images/WhatsApp Image 2024-11-18 at 11.40.34_076eab8e.jpg"
 
+
 def initialize_session_state():
     """Initialize Streamlit session state variables with better defaults."""
     default_states = {
@@ -137,6 +138,7 @@ class EmotionTransformer(VideoTransformerBase):
             print(f"Error in emotion detection: {e}")
             # Return original frame on error
             return frame
+
 
 class GitaGeminiBot:
     def __init__(self, api_key: str):
@@ -346,6 +348,7 @@ class GitaGeminiBot:
                 "emotional_state": emotional_state
             }
 
+
 def render_additional_options():
     """Render additional options below the image, including webcam with emotion detection."""
     
@@ -395,6 +398,7 @@ def render_additional_options():
             help="Your current emotional state for personalized guidance"
         )
 
+
     # Webcam Section
     st.markdown("### 📹 Spiritual Presence & Emotion Detection")
     webcam_col1, webcam_col2 = st.columns([1, 3])
@@ -404,6 +408,7 @@ def render_additional_options():
             key="webcam_enabled",
             help="Enable webcam and emotion detection for mindful presence"
         )
+
 
     if webcam_enabled:
         # WebRTC Configuration for better connectivity
@@ -446,6 +451,7 @@ def render_additional_options():
     # The sum of these ratios is 11.
     col_empty_left_qa, col_qa1, col_qa2, col_qa3, col_qa4, col_qa5, col_empty_right_qa = st.columns([0.75, 2, 2, 2, 2, 2, 0.75]) 
 
+
     with col_qa1:
         if st.button("🎲 Random Verse", help="Get a random verse for inspiration"):
             return "random_verse"
@@ -462,6 +468,7 @@ def render_additional_options():
         if st.button("📖 Chapter Summary", help="Get a summary of any chapter"):
             return "chapter_summary"
 
+
     with col_qa5:
         if st.button("⭐ Favorites Marked", help="View your saved favorite verses"):
             return "view_favorites"
@@ -473,7 +480,9 @@ def render_additional_options():
         if st.button("🔄 Reset Chat", help="Clear all chat history and start fresh"):
             return "reset_chat"
 
+
     return None
+
 
 def handle_quick_actions(action_type):
     """Handle quick action button clicks."""
@@ -502,18 +511,19 @@ def handle_quick_actions(action_type):
         st.session_state.show_chapter_summary = True
         return None
     
-    elif action_type == "view_favorites": # Handle the new action type
+    elif action_type == "view_favorites":  # Handle the new action type
         st.info("Displaying your favorite verses...")
         return None 
     
-    elif action_type == "reset_chat": # Handle the reset_chat action type
+    elif action_type == "reset_chat":  # Handle the reset_chat action type
         for key in ['messages', 'question_history']:
             if key in st.session_state:
                 st.session_state[key] = []
-        st.rerun() # Rerun to clear chat
-        return None # No question to generate after reset
+        st.experimental_rerun()  # Rerun to clear chat
+        return None  # No question to generate after reset
     
     return None
+
 
 def render_enhanced_sidebar():
     """Enhanced sidebar with better organization - showing ALL verses."""
@@ -580,6 +590,7 @@ def render_enhanced_sidebar():
     else:
         st.sidebar.info("No favorites saved yet")
 
+
 def create_downloadable_content(chat_history: List[Dict]) -> str:
     """Formats the chat history into a readable string for download."""
     content = f"--- Wisdom Weaver Chat History - {datetime.now().strftime('%Y-%m-%d %H:%M')} ---\n\n"
@@ -606,12 +617,13 @@ def create_downloadable_content(chat_history: List[Dict]) -> str:
     content += "--- End of Chat History ---"
     return content
 
+
 def main():
     """Enhanced main Streamlit application."""
     st.set_page_config(
         page_title="Bhagavad Gita Wisdom Weaver",
         page_icon="🕉️",
-        layout="wide", # This is key for full-width layout
+        layout="wide",  # This is key for full-width layout
         initial_sidebar_state="expanded"
     )
 
@@ -622,7 +634,6 @@ def main():
     if os.path.exists(IMAGE_PATH):
         try:
             image = Image.open(IMAGE_PATH)
-            # Increased max_width from 500 to 850 for larger image
             max_width = 1800
             aspect_ratio = image.height / image.width
             resized_image = image.resize((max_width, int(max_width * aspect_ratio)))
@@ -643,7 +654,7 @@ def main():
     if quick_action:
         # Handle reset action directly here to avoid re-generating a question
         if quick_action == "reset_chat":
-            handle_quick_actions("reset_chat") # This will clear messages and rerun
+            handle_quick_actions("reset_chat")  # This will clear messages and rerun
         else:
             auto_question = handle_quick_actions(quick_action)
             if auto_question:
@@ -659,25 +670,33 @@ def main():
                         "role": "assistant",
                         **response
                     })
-                    st.rerun()
+                    st.experimental_rerun()
 
     st.markdown("<h1 style='text-align: center; white-space: nowrap;'>🕉️ Bhagavad Gita Wisdom</h1>", unsafe_allow_html=True)
 
     st.markdown("""
         <p style='text-align: center; font-size: 1.1em; line-height: 1.6; padding-left: 5%; padding-right: 5%;'>
-        Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita.Personalize your experience using the options above.
+        Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita. Personalize your experience using the options above.
         </p>
         """, unsafe_allow_html=True)
 
     left_empty_for_center, main_chat_col, sidebar_col = st.columns([1, 3, 1]) 
 
     with main_chat_col:
-        if question := st.chat_input("Ask your question here..."):
-            st.session_state.messages.append({"role": "user", "content": question})
+        if "submission_in_progress" not in st.session_state:
+            st.session_state.submission_in_progress = False
 
+        if not st.session_state.submission_in_progress:
+            question = st.chat_input("Ask your question here...")
+            if question:
+                st.session_state.messages.append({"role": "user", "content": question})
+                st.session_state.submission_in_progress = True
+                st.experimental_rerun()
+        else:
             with st.spinner("🧘 Contemplating your question..."):
+                last_user_msg = st.session_state.messages[-1]["content"]
                 response = asyncio.run(st.session_state.bot.get_response(
-                    question,
+                    last_user_msg,
                     st.session_state.selected_theme,
                     st.session_state.current_mood,
                     dominant_emotion()
@@ -686,7 +705,8 @@ def main():
                     "role": "assistant",
                     **response
                 })
-                st.rerun()
+                st.session_state.submission_in_progress = False
+                st.experimental_rerun()
 
         # Enhanced message display (now below the input)
         for i, message in enumerate(st.session_state.messages):
@@ -745,7 +765,6 @@ def main():
                         elif verse_info:
                             st.warning("This verse is already in your favorites!")
 
-
         # Add the download button after the chat messages
         if st.session_state.messages:
             chat_content = create_downloadable_content(st.session_state.messages)
@@ -757,7 +776,7 @@ def main():
                 help="Download your entire chat conversation as a text file"
             )
 
-    with sidebar_col: # This column will contain the sidebar content
+    with sidebar_col:
         render_enhanced_sidebar()
 
     # --- About Us Section ---
@@ -766,10 +785,13 @@ def main():
         st.markdown("""
 ## About Wisdom Weaver
 
+
 **Wisdom Weaver** is a thoughtful AI-driven spiritual guide rooted in the timeless wisdom of the *Bhagavad Gita*. Created for modern seekers navigating life’s complexities, this platform offers personalized guidance, daily reflection, and the ability to connect with the deeper meaning behind ancient teachings.
+
 
 ### 🌱 Our Vision
 To bridge ancient spiritual insight with today’s challenges—offering clarity, strength, and inner peace through meaningful interaction.
+
 
 ### 🔍 What We Offer
 - **AI-Powered Insights:** Harnessing Google’s Gemini AI to interpret Gita verses in ways that resonate with your current state of mind.
@@ -778,12 +800,15 @@ To bridge ancient spiritual insight with today’s challenges—offering clarity
 - **Interactive Tools:** Save favorite verses, revisit reflections, or receive a random verse tailored to your need.
 - **Community-Centric Design:** Built by people who believe spirituality is a journey best shared.
 
+
 ### 🌟 Why Bhagavad Gita?
 In every era, humanity has faced the same questions: Who am I? What is my purpose? Why do I suffer? The Gita doesn’t provide fixed answers—it offers a path. A mirror. A gentle but firm invitation to understand the self and act with awareness.
+
 
 ### 🧭 Meet the Team
 - **Satvik gupta & Contributors:** Students of life, seekers of clarity—dedicated to merging tradition with technology.
 - **Spiritual Mentors & Advisors:** Guiding the app’s soul to ensure authenticity and reverence.
+
 
 
 
