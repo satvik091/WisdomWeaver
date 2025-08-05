@@ -525,6 +525,19 @@ def handle_quick_actions(action_type):
     return None
 
 
+# 📚 Blog List Section
+st.header("📚 Blog List")
+
+blogs = []
+
+if not blogs:
+    st.info("No blogs available. Please check back later.")
+else:
+    for blog in blogs:
+        st.subheader(blog['title'])
+        st.write(blog['content'])
+
+
 def render_enhanced_sidebar():
     """Enhanced sidebar with better organization - showing ALL verses."""
     st.sidebar.title("📖 Browse Sacred Texts")
