@@ -531,7 +531,7 @@ st.header("📚 Blog List")
 blogs = []
 
 if not blogs:
-    st.info("No blogs available. Please check back later.")
+    st.info("No blogs available yet.")
 else:
     for blog in blogs:
         st.subheader(blog['title'])
