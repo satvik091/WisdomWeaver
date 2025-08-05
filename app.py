@@ -1,3 +1,10 @@
+import streamlit as st
+
+st.set_page_config(
+    page_title="Wisdom Weaver",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 import requests
 import pandas as pd
 import streamlit as st
