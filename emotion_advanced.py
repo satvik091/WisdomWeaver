@@ -10,7 +10,9 @@ from collections import deque
 import queue
 
 class AdvancedEmotionDetector:
-    def __init__(self):
+    def __init__(self, verbose=True):
+        # Add verbose parameter to control console output
+        self.verbose = verbose
         # Load face detection models
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         
@@ -35,8 +37,9 @@ class AdvancedEmotionDetector:
         # Start processing thread
         self.processing_thread = threading.Thread(target=self._emotion_processing_loop, daemon=True)
         self.processing_thread.start()
-        
-        print("Advanced Emotion Detector initialized!")
+
+        if self.verbose:
+          print("Advanced Emotion Detector initialized!")
 
     def _emotion_processing_loop(self):
         """Background thread for emotion processing"""
@@ -64,7 +67,8 @@ class AdvancedEmotionDetector:
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f"Processing error: {e}")
+                if self.verbose:
+                 print(f"Processing error: {e}")
 
     def _analyze_emotion_internal(self, face_roi):
         """Internal emotion analysis method with improved neutral handling"""
@@ -105,25 +109,30 @@ class AdvancedEmotionDetector:
                             # Special handling for angry - needs >12% confidence
                             if confidence_score > 12.0:
                                 dominant_emotion = emotion_name
-                                print(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
+                                if self.verbose:
+                                   print(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
                                 break
                             else:
-                                print(f"Skipping angry ({confidence_score:.1f}%) - below 12% threshold")
+                                if self.verbose:
+                                   print(f"Skipping angry ({confidence_score:.1f}%) - below 12% threshold")
                                 continue
                         elif emotion_name == 'sad':
                             # Special handling for sad - needs >2.5% confidence
                             if confidence_score > 2.5:
                                 dominant_emotion = emotion_name
-                                print(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
+                                if self.verbose:
+                                  print(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
                                 break
                             else:
-                                print(f"Skipping sad ({confidence_score:.1f}%) - below 2.5% threshold")
+                                if self.verbose:
+                                  print(f"Skipping sad ({confidence_score:.1f}%) - below 2.5% threshold")
                                 continue
                         else:
                             # For other emotions, use >5% threshold
                             if confidence_score > 5.0:
                                 dominant_emotion = emotion_name
-                                print(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
+                                if self.verbose:
+                                  print(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
                                 break
             
             # Special handling for happy - only display if confidence > 70%
@@ -138,7 +147,8 @@ class AdvancedEmotionDetector:
                     for emotion_name, confidence_score in sorted_emotions:
                         if emotion_name != 'happy' and confidence_score > 5.0:
                             dominant_emotion = emotion_name
-                            print(f"Happy confidence {happy_confidence:.1f}% <= 70%, using {emotion_name} ({confidence_score:.1f}%)")
+                            if self.verbose:
+                              print(f"Happy confidence {happy_confidence:.1f}% <= 70%, using {emotion_name} ({confidence_score:.1f}%)")
                             break
             
             return dominant_emotion, emotion_data
@@ -281,8 +291,8 @@ class AdvancedEmotionDetector:
             self.processing_thread.join(timeout=1)
 
 def main_advanced():
-    detector = AdvancedEmotionDetector()
-    
+    detector = AdvancedEmotionDetector(verbose=True)   # Turns them on (default behavior)
+
     # Initialize video capture with optimal settings
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -385,21 +395,25 @@ def main_advanced():
                 break
             elif key == ord('r'):
                 detector.emotion_history.clear()
-                print("Emotion history reset!")
+                if detector.verbose:
+                   print("Emotion history reset!")
             elif key == ord('d'):
                 debug_mode = not debug_mode
-                print(f"Debug mode: {'ON' if debug_mode else 'OFF'}")
+                if detector.verbose:
+                    print(f"Debug mode: {'ON' if debug_mode else 'OFF'}")
             
             detector.frame_count += 1
     
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        if detector.verbose:
+         print("\nShutting down...")
     
     finally:
         detector.cleanup()
         cap.release()
         cv2.destroyAllWindows()
-        print("Advanced emotion detection stopped.")
+        if detector.verbose:
+          print("Advanced emotion detection stopped.")
 
 if __name__ == "__main__":
     main_advanced()
