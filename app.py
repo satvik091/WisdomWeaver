@@ -22,6 +22,8 @@ import cv2
 import numpy as np
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
 from collections import Counter, deque
+import plotly.graph_objects as go
+import plotly.express as px
 
 # Import the advanced emotion detector
 from emotion_advanced import AdvancedEmotionDetector
@@ -32,6 +34,175 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY")
 GITA_CSV_PATH = "bhagavad_gita_verses.csv"
 IMAGE_PATH = "Public/Images/WhatsApp Image 2024-11-18 at 11.40.34_076eab8e.jpg"
+
+
+def create_confidence_visualization(confidence_data: Dict[str, float], title: str = "Model Confidence") -> go.Figure:
+    """
+    Create a confidence visualization using Plotly.
+    
+    Args:
+        confidence_data: Dictionary with emotion names as keys and confidence scores as values
+        title: Title for the chart
+    
+    Returns:
+        Plotly figure object
+    """
+    if not confidence_data:
+        return None
+    
+    # Sort emotions by confidence score
+    sorted_emotions = sorted(confidence_data.items(), key=lambda x: x[1], reverse=True)
+    emotions, scores = zip(*sorted_emotions)
+    
+    # Create color mapping based on confidence levels
+    colors = []
+    for score in scores:
+        if score >= 80:
+            colors.append('#2E8B57')  # Sea Green - High confidence
+        elif score >= 60:
+            colors.append('#FFD700')  # Gold - Medium confidence
+        elif score >= 40:
+            colors.append('#FF8C00')  # Dark Orange - Low confidence
+        else:
+            colors.append('#DC143C')  # Crimson - Very low confidence
+    
+    # Create horizontal bar chart
+    fig = go.Figure(data=[
+        go.Bar(
+            x=scores,
+            y=emotions,
+            orientation='h',
+            marker_color=colors,
+            text=[f'{score:.1f}%' for score in scores],
+            textposition='auto',
+            hovertemplate='<b>%{y}</b><br>Confidence: %{x:.1f}%<extra></extra>'
+        )
+    ])
+    
+    # Update layout for better appearance
+    fig.update_layout(
+        title={
+            'text': title,
+            'x': 0.5,
+            'xanchor': 'center',
+            'font': {'size': 16, 'color': '#333333'}
+        },
+        xaxis_title="Confidence Score (%)",
+        yaxis_title="Emotions",
+        xaxis=dict(range=[0, 100]),
+        height=300,
+        margin=dict(l=20, r=20, t=40, b=20),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        showlegend=False
+    )
+    
+    return fig
+
+
+def create_confidence_interval_display(confidence_data: Dict[str, float], primary_emotion: str) -> str:
+    """
+    Create a text-based confidence interval display.
+    
+    Args:
+        confidence_data: Dictionary with emotion names and confidence scores
+        primary_emotion: The primary detected emotion
+    
+    Returns:
+        Formatted string showing confidence interval
+    """
+    if not confidence_data or primary_emotion not in confidence_data:
+        return "Confidence: Not available"
+    
+    primary_confidence = confidence_data[primary_emotion]
+    
+    # Calculate confidence interval based on the score
+    if primary_confidence >= 90:
+        interval = f"95% CI: {primary_confidence-5:.1f}%–{min(100, primary_confidence+5):.1f}%"
+        confidence_level = "Very High"
+    elif primary_confidence >= 75:
+        interval = f"90% CI: {primary_confidence-8:.1f}%–{min(100, primary_confidence+8):.1f}%"
+        confidence_level = "High"
+    elif primary_confidence >= 60:
+        interval = f"85% CI: {primary_confidence-10:.1f}%–{min(100, primary_confidence+10):.1f}%"
+        confidence_level = "Medium"
+    elif primary_confidence >= 40:
+        interval = f"80% CI: {primary_confidence-12:.1f}%–{min(100, primary_confidence+12):.1f}%"
+        confidence_level = "Low"
+    else:
+        interval = f"75% CI: {primary_confidence-15:.1f}%–{min(100, primary_confidence+15):.1f}%"
+        confidence_level = "Very Low"
+    
+    return f"**{primary_emotion.title()}** ({primary_confidence:.1f}%) - {confidence_level} Confidence\n{interval}"
+
+
+def render_confidence_dashboard(emotion_detector):
+    """
+    Render a comprehensive confidence dashboard for emotion detection.
+    
+    Args:
+        emotion_detector: The AdvancedEmotionDetector instance
+    """
+    if not emotion_detector:
+        return
+    
+    # Get current emotion and confidence data
+    current_emotion, confidence_data = emotion_detector.get_current_emotion()
+    
+    if not confidence_data:
+        st.info("🔍 Waiting for emotion detection data...")
+        return
+    
+    st.markdown("### 📊 Emotion Detection Confidence Dashboard")
+    
+    # Create two columns for the dashboard
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Display confidence visualization
+        if confidence_data:
+            fig = create_confidence_visualization(confidence_data, "Emotion Confidence Scores")
+            if fig:
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    
+    with col2:
+        # Display confidence interval and summary
+        if current_emotion and confidence_data:
+            confidence_text = create_confidence_interval_display(confidence_data, current_emotion)
+            st.markdown(confidence_text)
+            
+            # Add confidence level indicator
+            primary_confidence = confidence_data.get(current_emotion, 0)
+            if primary_confidence >= 80:
+                st.success("✅ High Confidence Detection")
+            elif primary_confidence >= 60:
+                st.warning("⚠️ Medium Confidence Detection")
+            else:
+                st.error("❌ Low Confidence Detection")
+            
+            # Show top 3 emotions
+            sorted_emotions = sorted(confidence_data.items(), key=lambda x: x[1], reverse=True)[:3]
+            st.markdown("**Top 3 Emotions:**")
+            for i, (emotion, score) in enumerate(sorted_emotions, 1):
+                st.markdown(f"{i}. {emotion.title()}: {score:.1f}%")
+    
+    # Add helpful tooltip
+    with st.expander("ℹ️ Understanding Confidence Scores"):
+        st.markdown("""
+        **What do these confidence scores mean?**
+        
+        - **90-100%**: Very High Confidence - The model is very certain about this emotion
+        - **75-89%**: High Confidence - The model is confident but there's some uncertainty
+        - **60-74%**: Medium Confidence - Moderate certainty, consider the context
+        - **40-59%**: Low Confidence - Significant uncertainty, results should be interpreted carefully
+        - **Below 40%**: Very Low Confidence - High uncertainty, consider manual assessment
+        
+        **Tips for better accuracy:**
+        - Ensure good lighting conditions
+        - Face the camera directly
+        - Maintain a neutral expression initially
+        - Avoid rapid movements
+        """)
 
 
 def initialize_session_state():
@@ -285,6 +456,63 @@ class GitaGeminiBot:
         found_keywords = [keyword for keyword in common_gita_keywords if keyword in text_lower]
         return found_keywords[:5]  # Return top 5 relevant keywords
 
+    def _calculate_response_confidence(self, response: Dict, question: str, theme: str = None, mood: str = None, emotional_state: str = None) -> float:
+        """
+        Calculate confidence score for the AI response based on various factors.
+        
+        Args:
+            response: The formatted response dictionary
+            question: The user's question
+            theme: Selected theme
+            mood: User's mood
+            emotional_state: Detected emotional state
+            
+        Returns:
+            Confidence score between 0 and 100
+        """
+        confidence_score = 0.0
+        
+        # Base confidence from response completeness (40% weight)
+        completeness_score = 0.0
+        required_fields = ['verse_reference', 'translation', 'explanation', 'application']
+        present_fields = sum(1 for field in required_fields if response.get(field) and len(str(response[field]).strip()) > 10)
+        completeness_score = (present_fields / len(required_fields)) * 40
+        
+        # Content quality score (30% weight)
+        quality_score = 0.0
+        if response.get('translation'):
+            quality_score += 10
+        if response.get('explanation') and len(response['explanation']) > 50:
+            quality_score += 10
+        if response.get('application') and len(response['application']) > 50:
+            quality_score += 10
+        
+        # Context relevance score (20% weight)
+        relevance_score = 0.0
+        if theme and theme in self.themes:
+            relevance_score += 5
+        if mood:
+            relevance_score += 5
+        if emotional_state:
+            relevance_score += 5
+        if response.get('keywords'):
+            relevance_score += 5
+        
+        # Response length and detail score (10% weight)
+        detail_score = 0.0
+        total_length = sum(len(str(response.get(field, ''))) for field in ['translation', 'explanation', 'application'])
+        if total_length > 200:
+            detail_score = 10
+        elif total_length > 100:
+            detail_score = 7
+        elif total_length > 50:
+            detail_score = 5
+        
+        confidence_score = completeness_score + quality_score + relevance_score + detail_score
+        
+        # Ensure score is between 0 and 100
+        return min(100.0, max(0.0, confidence_score))
+
     async def get_response(self, question: str, theme: str = None, mood: str = None, emotional_state: str = None) -> Dict:
         """Enhanced response generation with theme, mood, and emotional state context."""
         try:
@@ -331,6 +559,10 @@ class GitaGeminiBot:
                 raise ValueError("Empty response received from the model")
 
             formatted_response = self.format_response(response.text)
+            
+            # Calculate confidence score based on response quality and completeness
+            confidence_score = self._calculate_response_confidence(formatted_response, question, theme, mood, emotional_state)
+            formatted_response["confidence_score"] = confidence_score
             
             # Add metadata
             formatted_response["timestamp"] = datetime.now().isoformat()
@@ -425,7 +657,7 @@ def render_additional_options():
         
         st.info("🎥 Webcam with emotion detection is now active. You can continue chatting while the camera runs!")
         
-        # Create a smaller container for the webcam feed
+        # Create a container for the webcam feed and confidence dashboard
         webcam_container = st.container()
         with webcam_container:
             # Use columns to control the width - making it smaller
@@ -449,6 +681,10 @@ def render_additional_options():
                 # Expose ctx so the main thread can read the emotion history
                 if ctx:
                     st.session_state["webrtc_ctx"] = ctx
+        
+        # Add confidence dashboard below the webcam
+        if st.session_state.emotion_detector:
+            render_confidence_dashboard(st.session_state.emotion_detector)
     
     # Quick action buttons - All 5 on one line, centered
     st.markdown("### ⚡ Quick Actions")
@@ -573,20 +809,49 @@ def render_enhanced_sidebar():
                     question = f"Please explain Chapter {chapter_num}, Verse {verse_num} and its practical application in modern life."
                     st.session_state.auto_question = question
 
-    # Enhanced question history
+    # Enhanced question history with confidence indicators
     st.sidebar.markdown("---")
     st.sidebar.title("💭 Your Spiritual Journey")
     
     user_questions = [msg["content"] for msg in st.session_state.messages if msg["role"] == "user"]
+    ai_responses = [msg for msg in st.session_state.messages if msg["role"] == "assistant"]
+    
     if user_questions:
         st.sidebar.markdown(f"**Questions Asked:** {len(user_questions)}")
         
-        # Show recent questions with timestamps
+        # Show recent questions with confidence indicators
         for i, q in enumerate(user_questions[-5:], 1):  # Show last 5 questions
             with st.sidebar.expander(f"Question {len(user_questions) - 5 + i}"):
                 st.markdown(f"*{q}*")
+                
+                # Show confidence for corresponding AI response if available
+                if i <= len(ai_responses):
+                    response = ai_responses[-(i)]
+                    if response.get('confidence_score') is not None:
+                        confidence_score = response['confidence_score']
+                        
+                        # Small confidence badge
+                        if confidence_score >= 80:
+                            st.sidebar.success(f"🤖 {confidence_score:.0f}%")
+                        elif confidence_score >= 60:
+                            st.sidebar.warning(f"🤖 {confidence_score:.0f}%")
+                        else:
+                            st.sidebar.error(f"🤖 {confidence_score:.0f}%")
     else:
         st.sidebar.info("🌱 Begin your journey by asking a question")
+    
+    # Confidence summary
+    if ai_responses:
+        avg_confidence = sum(msg.get('confidence_score', 0) for msg in ai_responses) / len(ai_responses)
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("**📊 Response Quality Summary:**")
+        
+        if avg_confidence >= 80:
+            st.sidebar.success(f"Average Confidence: {avg_confidence:.1f}%")
+        elif avg_confidence >= 60:
+            st.sidebar.warning(f"Average Confidence: {avg_confidence:.1f}%")
+        else:
+            st.sidebar.error(f"Average Confidence: {avg_confidence:.1f}%")
 
     # Favorites section (placeholder for future enhancement)
     st.sidebar.markdown("---")
@@ -754,6 +1019,44 @@ def main():
                     
                     if context_parts:
                         st.markdown("**Response Context:** " + " • ".join(context_parts))
+                    
+                    # Display confidence score for AI responses
+                    if message.get('confidence_score') is not None:
+                        confidence_score = message['confidence_score']
+                        
+                        # Create confidence indicator
+                        col1, col2, col3 = st.columns([1, 3, 1])
+                        with col2:
+                            st.markdown("**🤖 AI Response Confidence:**")
+                            
+                            # Confidence bar
+                            confidence_color = "green" if confidence_score >= 80 else "orange" if confidence_score >= 60 else "red"
+                            st.progress(confidence_score / 100, text=f"{confidence_score:.1f}%")
+                            
+                            # Confidence level indicator
+                            if confidence_score >= 80:
+                                st.success(f"✅ High Confidence ({confidence_score:.1f}%)")
+                            elif confidence_score >= 60:
+                                st.warning(f"⚠️ Medium Confidence ({confidence_score:.1f}%)")
+                            else:
+                                st.error(f"❌ Low Confidence ({confidence_score:.1f}%)")
+                            
+                            # Confidence explanation tooltip
+                            with st.expander("ℹ️ What does this confidence score mean?"):
+                                st.markdown(f"""
+                                **Response Quality Assessment:**
+                                
+                                This confidence score ({confidence_score:.1f}%) indicates how well the AI was able to:
+                                - **Provide complete information** (verse reference, translation, explanation, application)
+                                - **Match your context** (theme: {message.get('theme', 'N/A')}, mood: {message.get('mood', 'N/A')})
+                                - **Address your emotional state** ({message.get('emotional_state', 'N/A')})
+                                - **Offer detailed and relevant guidance**
+                                
+                                **Confidence Levels:**
+                                - **80-100%**: Excellent response quality with comprehensive guidance
+                                - **60-79%**: Good response with room for improvement
+                                - **Below 60%**: Basic response, consider rephrasing your question
+                                """)
 
                     # NEW: Add Favorite button for assistant responses
                     unique_key = f"favorite_btn_{i}_{message.get('verse_reference', '').replace(' ', '_')}"
