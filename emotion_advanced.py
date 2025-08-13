@@ -1,6 +1,3 @@
-# Advanced Real-time emotion detection with threading and caching
-# This version uses threading for maximum performance
-
 from deepface import DeepFace
 import cv2
 import numpy as np
@@ -8,11 +5,16 @@ import threading
 import time
 from collections import deque
 import queue
+import logging
 
 class AdvancedEmotionDetector:
+
+    def __init__(self, fallback_emotion="neutral", verbose=False):
+
     def __init__(self, verbose=True):
         # Add verbose parameter to control console output
         self.verbose = verbose
+
         # Load face detection models
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         
@@ -33,6 +35,11 @@ class AdvancedEmotionDetector:
         
         # Emotion smoothing (reduces flickering)
         self.emotion_history = deque(maxlen=5)
+        
+        # Customizable fallback and verbose settings
+        self.fallback_emotion = fallback_emotion
+        self.verbose = verbose
+        logging.basicConfig(level=logging.INFO if verbose else logging.WARNING)
         
         # Start processing thread
         self.processing_thread = threading.Thread(target=self._emotion_processing_loop, daemon=True)
@@ -68,7 +75,11 @@ class AdvancedEmotionDetector:
                 continue
             except Exception as e:
                 if self.verbose:
+
+                    logging.warning(f"Processing error: {e}")
+
                  print(f"Processing error: {e}")
+
 
     def _analyze_emotion_internal(self, face_roi):
         """Internal emotion analysis method with improved neutral handling"""
@@ -106,33 +117,50 @@ class AdvancedEmotionDetector:
                     # Look for the best non-neutral emotion
                     for emotion_name, confidence_score in sorted_emotions[1:]:  # Skip neutral (first one)
                         if emotion_name == 'angry':
-                            # Special handling for angry - needs >12% confidence
                             if confidence_score > 12.0:
                                 dominant_emotion = emotion_name
                                 if self.verbose:
+
+                                    logging.warning(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
+                                break
+                            else:
+                                if self.verbose:
+                                    logging.warning(f"Skipping angry ({confidence_score:.1f}%) - below 12% threshold")
+
                                    print(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
                                 break
                             else:
                                 if self.verbose:
                                    print(f"Skipping angry ({confidence_score:.1f}%) - below 12% threshold")
+
                                 continue
                         elif emotion_name == 'sad':
-                            # Special handling for sad - needs >2.5% confidence
                             if confidence_score > 2.5:
                                 dominant_emotion = emotion_name
                                 if self.verbose:
+
+                                    logging.warning(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
+                                break
+                            else:
+                                if self.verbose:
+                                    logging.warning(f"Skipping sad ({confidence_score:.1f}%) - below 2.5% threshold")
+
                                   print(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
                                 break
                             else:
                                 if self.verbose:
                                   print(f"Skipping sad ({confidence_score:.1f}%) - below 2.5% threshold")
+
                                 continue
                         else:
-                            # For other emotions, use >5% threshold
                             if confidence_score > 5.0:
                                 dominant_emotion = emotion_name
                                 if self.verbose:
+
+                                    logging.warning(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
+
                                   print(f"Neutral confidence {neutral_confidence:.1f}% < 95%, using {emotion_name} ({confidence_score:.1f}%)")
+
                                 break
             
             # Special handling for happy - only display if confidence > 70%
@@ -148,13 +176,24 @@ class AdvancedEmotionDetector:
                         if emotion_name != 'happy' and confidence_score > 5.0:
                             dominant_emotion = emotion_name
                             if self.verbose:
+
+                                logging.warning(f"Happy confidence {happy_confidence:.1f}% <= 70%, using {emotion_name} ({confidence_score:.1f}%)")
+
                               print(f"Happy confidence {happy_confidence:.1f}% <= 70%, using {emotion_name} ({confidence_score:.1f}%)")
+
                             break
+                    else:
+                        # If no alternative found, fall back to custom fallback
+                        if self.verbose:
+                            logging.warning(f"No suitable emotion found, falling back to {self.fallback_emotion}")
+                        dominant_emotion = self.fallback_emotion
             
             return dominant_emotion, emotion_data
             
         except Exception as e:
-            return None, None
+            if self.verbose:
+                logging.warning(f"Error in emotion analysis: {e}, falling back to {self.fallback_emotion}")
+            return self.fallback_emotion, None
 
     def detect_faces_optimized(self, frame):
         """Optimized face detection with single best face selection"""
@@ -165,37 +204,26 @@ class AdvancedEmotionDetector:
         
         faces = self.face_cascade.detectMultiScale(
             gray,
-            scaleFactor=1.08,  # Slightly larger scale factor to reduce false positives
-            minNeighbors=8,    # Increased neighbors to reduce false detections
-            minSize=(80, 80),  # Larger minimum size to avoid detecting hands/small objects
+            scaleFactor=1.08,
+            minNeighbors=8,
+            minSize=(80, 80),
             maxSize=(400, 400),
             flags=cv2.CASCADE_SCALE_IMAGE
         )
         
-        # Filter and return only the best face
         if len(faces) > 0:
-            # Calculate face quality scores based on size and position
             scored_faces = []
             frame_center_x, frame_center_y = frame.shape[1] // 2, frame.shape[0] // 2
             
             for (x, y, w, h) in faces:
-                # Calculate face area
                 area = w * h
-                
-                # Calculate distance from center (prefer centered faces)
                 face_center_x, face_center_y = x + w // 2, y + h // 2
                 distance_from_center = ((face_center_x - frame_center_x) ** 2 + 
                                       (face_center_y - frame_center_y) ** 2) ** 0.5
-                
-                # Calculate aspect ratio (faces should be roughly square)
                 aspect_ratio = min(w, h) / max(w, h)
-                
-                # Combined score (higher is better)
                 score = area * aspect_ratio * (1 / (1 + distance_from_center * 0.01))
-                
                 scored_faces.append((score, (x, y, w, h)))
             
-            # Return only the best face
             best_face = max(scored_faces, key=lambda x: x[0])[1]
             return [best_face]
         
@@ -416,4 +444,7 @@ def main_advanced():
           print("Advanced emotion detection stopped.")
 
 if __name__ == "__main__":
-    main_advanced()
+    detector = AdvancedEmotionDetector(fallback_emotion="calm", verbose=True)
+    # Force a failure by passing None or invalid data
+    emotion, _ = detector._analyze_emotion_internal(None)  # Direct call to internal method
+    print(f"Current emotion: {emotion}")
