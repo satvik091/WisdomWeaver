@@ -3,6 +3,18 @@
 A real-time, AI-powered chatbot that provides **mental health support and spiritual guidance** using teachings from the **Bhagavad Gita**. Ask life questions and receive structured answers powered by **Google Gemini API**, displayed in a clean and friendly **Streamlit interface**.
 
 ---
+## ❓ Why Use WisdomWeaver?
+
+In today’s fast-paced world, we often face stress, confusion, and emotional challenges. **WisdomWeaver** bridges ancient spiritual wisdom with modern AI to help you:
+
+- 🧘‍♀️ Reflect deeply on life problems with timeless Gita teachings.
+- 💡 Get practical and philosophical advice tailored to your questions.
+- 🌿 Improve mental well-being with spiritually grounded responses.
+- 🔄 Understand the Gita verse-by-verse with contextual insights.
+
+Whether you're spiritually inclined, curious about the Gita, or just looking for calm guidance — this tool is made for **you**.
+
+---
 
 ## 📽️ Demo :
 https://bkins-wisdomweaver.streamlit.app/
@@ -52,121 +64,196 @@ https://bkins-wisdomweaver.streamlit.app/
 ### 📦 Prerequisites
 
 - Python 3.9 or higher
-- Google Gemini API ([Get one here]( https://aistudio.google.com/app/apikey)
+- pip (Python package installer)
+- Google Gemini API Key ([Get one here](https://aistudio.google.com/app/apikey))
+
+## 🔑 Generating Your Google Gemini API Key
+
+To use the Google Gemini API, follow these steps to generate your API key:
+
+1. Go to the [Google AI Studio](https://makersuite.google.com/app) website.
+2. Sign in with your Google account.
+3. Click on **"Create API Key in new project"** or select an existing project to generate a new key.
+4. Copy the generated API key.  
+   📌 **Note:** You’ll need this key for authentication in the next step.
 
 ### 🚀 Installation
 
-
-# Clone the repository
+1. **Clone the repository**
+```bash
 git clone https://github.com/satvik091/WisdomWeaver.git
-cd gita-gemini-bot
+cd WisdomWeaver
+```
 
-# Install required Python packages
+2. **Create a virtual environment (recommended)**
+```bash
+# On Windows
+python -m venv venv
+venv\Scripts\activate
+
+# On macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
+```
+
+3. **Install required Python packages**
+```bash
 pip install -r requirements.txt
-🔑 API Key Configuration
-1. Create a `.env` file in the root directory:
+```
 
+## 🔑 API Key Configuration
+
+To securely use your Google Gemini API key in the **WisdomWeaver** project:
+
+### 1. Create a `.env` file  
+In the root directory of your project (where `main.py` and `requirements.txt` are located), create a new file named `.env`.
+
+### 2. Add your API key to `.env`  
+Open the `.env` file and add the following line (replace `your_api_key_here` with the actual key you generated earlier):
+-change .env.example to .env
 ```env
 GOOGLE_API_KEY=your_api_key_here
 
-▶️ Run the Application
-bash
-Copy
-Edit
-streamlit run main.py
+### 🔔 Important Notes
+
+- 🔒 **Never share your API key publicly.**
+- ✅ **Make sure your `.env` file is excluded from version control** (e.g., Git).
+- 📁 **The `.gitignore` file should already contain an entry for `.env`.** Double-check if you're unsure.
+```
+---
+
+### ▶️ Run the Application
+
+1. **Make sure your virtual environment is activated**
+```bash
+# On Windows
+venv\Scripts\activate
+
+# On macOS/Linux
+source venv/bin/activate
+```
+
+2. **Run the Streamlit app**
+```bash
+streamlit run app.py
+```
+### 🌐 Open in Browser
+
+Once the app starts, **WisdomWeaver** will automatically open in your default web browser at:
+
+[http://localhost:8501](http://localhost:8501)
+
+If it doesn’t open automatically, simply copy and paste the URL into your browser.
 
 
-📂 Folder Structure
-vbnet
-Copy
-Edit
-📁 gita-gemini-bot/ 
+### 🔧 Troubleshooting
 
- 📄 main.py                   ← Streamlit app file
- 
-  📄 bhagavad_gita_verses.csv ← Gita verse data
- 
-  📄 requirements.txt          ← Python dependencies
- 
-  📄 README.md                 ← You're here!
- 
- 📁 .streamlit/
-      
-💻 Sample Question
+**Issue: Module not found errors**
+- Make sure your virtual environment is activated
+- Run `pip install -r requirements.txt` again
 
-css
-Copy
-Edit
+**Issue: API key not working**
+- Verify your API key in the `.env` file
+- Make sure the `.env` file is in the root directory
+- Check that your Google AI API key is valid
 
-Q: Zindagi ka purpose kya hai?
+**Issue: Streamlit not starting**
+- Make sure you're in the correct directory
+- Try running `streamlit --version` to verify installation
 
-Output:
+---
+## 📂 Folder Structure
 
-Copy
-Edit
-Chapter 3, Verse 30
+```plaintext
+gita-gemini-bot/
+├── main.py                  # Streamlit app file
+├── bhagavad_gita_verses.csv # Bhagavad Gita verse data
+├── requirements.txt         # Python dependencies
+├── README.md                # You're here!
+├── .env.example             # Sample environment config
+└── .streamlit/              # Streamlit config folder
+```
 
-Sanskrit: Mayi sarvani karmani sannyasyadhyatmacetasa...
+---
+## 💻 Sample Question
 
-Translation: Dedicate all actions to me with full awareness of the Self.
+**Q:** *Zindagi ka purpose kya hai?*
 
-Explanation: Lord Krishna advises detachment and devotion in duty.
+**Output:**
 
-Application: Focus on sincere efforts, not selfish rewards.
+- 📖 **Chapter 3, Verse 30**
+- 🕉️ *Mayi sarvani karmani sannyasyadhyatmacetasa...*
 
-🤝 Contributing
+**Translation:**  
+*Dedicate all actions to me with full awareness of the Self.*
 
-We welcome contributions as part of GirlScript Summer of Code 2025 (GSSoC'25) and beyond!
+**Explanation:**  
+Lord Krishna advises detachment and devotion in duty.
 
-📌 Steps to Contribute
-Fork this repo 🍴
+**Application:**  
+Focus on sincere efforts, not selfish rewards.
 
-Create your branch (git checkout -b feat/amazing-feature)
+---
+## 🤝 Contributing
 
-Make your changes ✨
+We welcome contributions as part of **GirlScript Summer of Code 2025 (GSSoC'25)** and beyond!
 
-Commit your changes (git commit -m 'Add: Amazing Feature')
+### 📌 Steps to Contribute
 
-Push to your branch (git push origin feat/amazing-feature)
+1. **Fork** this repo 🍴  
+2. **Create a branch**  
+  ```bash
+   git checkout -b feat/amazing-feature
+  ```
+3. **Make your changes** ✨
+4. **Commit your changes**
+  ```bash
+  git commit -m 'Add: Amazing Feature'
+  ```
+5. **Push to your branch**
+  ```bash
+  git push origin feat/amazing-feature
+  ```
+6. **Open a Pull Request and link the related issue**
+  ```bash
+  Closes #6
+  ```
 
-Open a Pull Request and link the issue:
+---
+## 🌸 GirlScript Summer of Code 2025
 
-Copy
-Edit
-Closes #6
+This project is proudly part of **GSSoC '25**!  
+Thanks to the amazing open-source community, contributors, and mentors for your valuable support.
 
-📚 Also check: CONTRIBUTING.md (optional file to add)
+---
+## 📄 License
 
-🌸 GirlScript Summer of Code 2025
+This project is licensed under the **MIT License**.  
+See the [LICENSE](LICENSE) file for full details.
 
-This project is proudly part of GSSoC '25!
-Thanks to the amazing open-source community, contributors, and mentors.
-✨ Assigned Issue: #6 - Improve README file for better clarity and engagement
+---
 
-📄 License
+## 🙏 Acknowledgements
 
-This project is under the MIT License.
-See the LICENSE file for details.
+- 📜 **Bhagavad Gita** – Eternal source of wisdom  
+- 🧠 **Google Gemini API** – AI backend for responses  
+- 🌐 **Streamlit Team** – For the interactive app framework  
+- 👥 **GSSoC 2025 Community** – For mentorship and collaboration  
 
-🙏 Acknowledgements
-Bhagavad Gita
+---
 
-Google Gemini API
-
-Streamlit Team
-
-GSSoC 2025 Community
-
-
-📬 Contact
+## 📬 Contact
 
 Have ideas, feedback, or just want to say hi?
 
-Open an issue or contact the mentors via GitHub.
+- 🛠️ Open an issue in the repository  
+- 📧 Contact our mentor:
 
-Mentor:Harmanpreet
+**Mentor**: Harmanpreet  
+**GitHub**: [Harman-2](https://github.com/Harman-2)
 
-github:https://github.com/Harman-2
+---
 
-thank you :)
+Thank you for visiting! 🙏
+
 
