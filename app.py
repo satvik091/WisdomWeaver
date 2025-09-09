@@ -876,6 +876,80 @@ def render_enhanced_sidebar():
         st.sidebar.info("No favorites saved yet")
 
 
+
+
+def show_preloader():
+    st.markdown("""
+        <div style="text-align:center; margin-top:40px;">
+            <div style="font-size:60px; margin-bottom:10px;">🕉️</div>
+            <div style="font-size:22px; color:#7b3f00;">Contemplating your journey...</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+def login_signup_page():
+    st.markdown("""
+        <style>
+        body, .stApp, div[data-testid="stAppViewContainer"] > div:first-child {
+            background-color: #e6e2d3 !important;
+        }
+        .login-card {
+            background-color: #e6e2d3;
+            border-radius: 16px;
+            padding: 32px;
+            margin: auto;
+            max-width: 400px;
+            border: 1px solid #d1cfc7;
+            box-shadow: 0 2px 8px #d1cfc7;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    st.markdown("""
+        <div class="login-card">
+            <div style="text-align:center;">
+                <div style="font-size:50px; margin-bottom:10px;">🕉️</div>
+                <h2 style="color:#7b3f00;">Wisdom Weaver</h2>
+                <p style="font-size:18px;"><em>Welcome! Please login or sign up to begin your spiritual journey.</em></p>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    tab1, tab2 = st.tabs(["Login", "Sign Up"])
+    if "users" not in st.session_state:
+        st.session_state.users = {"demo": "demo123"}  # demo user
+
+    with tab1:
+        username = st.text_input("Username", key="login_user")
+        password = st.text_input("Password", type="password", key="login_pass")
+        if st.button("Login", key="login_btn"):
+            show_preloader()
+            time.sleep(1)
+            if username in st.session_state.users and st.session_state.users[username] == password:
+                st.session_state.logged_in = True
+                st.session_state.current_user = username
+                st.success("Login successful!")
+                st.rerun()
+            else:
+                st.error("Invalid username or password.")
+
+    with tab2:
+        new_user = st.text_input("Choose a Username", key="signup_user")
+        new_pass = st.text_input("Choose a Password", type="password", key="signup_pass")
+        if st.button("Sign Up", key="signup_btn"):
+            show_preloader()
+            time.sleep(1)
+            if new_user in st.session_state.users:
+                st.error("Username already exists.")
+            elif len(new_user) < 3 or len(new_pass) < 3:
+                st.error("Username and password must be at least 3 characters.")
+            else:
+                st.session_state.users[new_user] = new_pass
+                st.success("Sign up successful! Please login.")
+                st.rerun()
+# ...rest of your code remains unchanged...
+
+def main_app():
+    # Your original main() code here
+
 def create_downloadable_content(chat_history: List[Dict]) -> str:
     """Formats the chat history into a readable string for download."""
     content = f"--- Wisdom Weaver Chat History - {datetime.now().strftime('%Y-%m-%d %H:%M')} ---\n\n"
@@ -904,13 +978,29 @@ def create_downloadable_content(chat_history: List[Dict]) -> str:
 
 
 def main():
-    """Enhanced main Streamlit application."""
+    """Enhanced main Streamlit appli
     st.set_page_config(
         page_title="Bhagavad Gita Wisdom Weaver",
         page_icon="🕉️",
         layout="wide",  # This is key for full-width layout
         initial_sidebar_state="expanded"
     )
+    st.markdown("""
+        <style>
+        div[data-testid="stAppViewContainer"] > div:first-child {
+            background-color: #e6e2d3 !important;
+        }
+        section[data-testid="stSidebar"] {
+            background-color: #e6e2d3 !important;
+        }
+        .streamlit-expanderHeader {
+            background-color: #e6e2d3 !important;
+        }
+        .stMarkdown, .stExpanderContent {
+            background-color: #e6e2d3 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     # Initialize session state first, before any other operations
     initialize_session_state()
@@ -932,11 +1022,33 @@ def main():
     else:
         st.warning("Image file not found. Please ensure the image is in the correct location.")
 
-    # Render additional options below image - This section will now span full width
     quick_action = render_additional_options()
-    
-    # Handle quick actions
     if quick_action:
+
+        auto_question = handle_quick_actions(quick_action)
+        if auto_question:
+            st.session_state.messages.append({"role": "user", "content": auto_question})
+            show_preloader()
+            response = asyncio.run(st.session_state.bot.get_response(
+                auto_question, 
+                st.session_state.selected_theme,
+                st.session_state.current_mood
+            ))
+            st.session_state.messages.append({
+                "role": "assistant",
+                **response
+            })
+            st.rerun()
+
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.title("🕉️ Bhagavad Gita Wisdom")
+        st.markdown("""
+        Ask questions about life, dharma, and spirituality to receive guidance from the timeless wisdom of the Bhagavad Gita.
+        *Personalize your experience using the options above.*
+        """)
+        for message in st.session_state.messages:
+
         # Handle reset action directly here to avoid re-generating a question
         if quick_action == "reset_chat":
             handle_quick_actions("reset_chat")  # This will clear messages and rerun
@@ -995,31 +1107,42 @@ def main():
 
         # Enhanced message display (now below the input)
         for i, message in enumerate(st.session_state.messages):
+
             with st.chat_message(message["role"]):
                 if message["role"] == "user":
                     st.markdown(message["content"])
                 else:
-                    # Enhanced assistant message display
                     if message.get("verse_reference"):
                         st.markdown(f"**📖 {message['verse_reference']}**")
-                    
                     if message.get('sanskrit'):
                         st.markdown(f"*Sanskrit:* {message['sanskrit']}")
-                    
                     if message.get('translation'):
                         st.markdown(f"**Translation:** {message['translation']}")
-                    
                     if message.get('explanation'):
                         st.markdown("### 🧠 Understanding")
                         st.markdown(message["explanation"])
-                    
                     if message.get('application'):
                         st.markdown("### 🌟 Modern Application")
                         st.markdown(message["application"])
-                    
-                    # Show keywords if available
                     if message.get('keywords'):
                         st.markdown("**Key Concepts:** " + " • ".join([f"`{kw}`" for kw in message['keywords']]))
+
+        if question := st.chat_input("Ask your question here..."):
+            st.session_state.messages.append({"role": "user", "content": question})
+            show_preloader()
+            response = asyncio.run(st.session_state.bot.get_response(
+                question,
+                st.session_state.selected_theme,
+                st.session_state.current_mood
+            ))
+            st.session_state.messages.append({
+                "role": "assistant",
+                **response
+            })
+            st.rerun()
+        with col2:
+            render_enhanced_sidebar()
+
                     
                     # Show context values that were passed to LLM
                     context_parts = []
@@ -1102,11 +1225,54 @@ def main():
     with sidebar_col:
         render_enhanced_sidebar()
 
-    # --- About Us Section ---
+
     st.markdown("---")
     with st.expander("💫 About Wisdom Weaver", expanded=True):
         st.markdown("""
-## About Wisdom Weaver
+        <div style="background-color:#e6e2d3; border-radius:15px; padding:24px; border:1px solid #d1cfc7;">
+        <h2 style="text-align:center;">🕉️ <span style="color:#7b3f00;">Wisdom Weaver</span> 🕉️</h2>
+        <p style="text-align:center; font-size:18px;">
+        <em>“Let the light of ancient wisdom guide your modern journey.”</em>
+        </p>
+        <hr>
+        ### 🌱 Our Mission
+        <span style="font-size:16px;">
+        To bridge the timeless teachings of the <strong>Bhagavad Gita</strong> with the challenges of today, nurturing clarity, strength, and inner peace for every seeker.
+        </span>
+        ### ✨ Features
+        - 🧘 <strong>Spiritual Guidance:</strong> Personalized answers powered by Google's Gemini AI.
+        - 📖 <strong>Verse Explorer:</strong> Browse, search, and reflect on verses from all 18 chapters.
+        - 🎯 <strong>Quick Actions:</strong> Random verse, daily reflection, and more.
+        - ⭐ <strong>Favorites:</strong> Save and revisit your most inspiring verses.
+        - 🫶 <strong>Community:</strong> Connect, share, and grow with fellow seekers.
+        ### 📚 Why the Bhagavad Gita?
+        <span style="font-size:16px;">
+        The Gita is a universal scripture, a dialogue of the soul, offering wisdom for self-discovery, resilience, and harmony. Its teachings transcend boundaries, inviting all to walk the path of awareness.
+        </span>
+        ### 👥 Meet the Team
+        - <strong>Satvik & Contributors:</strong> Spiritual technologists and lifelong learners.
+        - <strong>Advisors:</strong> Gita scholars and meditation mentors.
+        ### 🤝 Connect & Community
+        - 📧 Email: <a href="mailto:support@wisdomweaver.app">support@wisdomweaver.app</a>
+        - 📸 Instagram: <a href="https://instagram.com/wisdomweaver.ai">@wisdomweaver.ai</a>
+        - 💬 Discord: <a href="https://discord.gg/yourcommunity">Join our Community</a>
+        - 💡 Feedback: We welcome your ideas and stories!
+        <hr>
+        <p style="text-align:center; font-size:18px;">
+        <em>“You are not alone on this journey. May the wisdom of the Gita illuminate your path.”</em><br>
+        <span style="font-size:22px;">🙏</span>
+        </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+def main():
+    if not st.session_state.get("logged_in", False):
+        login_signup_page()
+    else:
+        main_app()
+
+if __name__ == "__main__":
+    main()
 
 
 **Wisdom Weaver** is a thoughtful AI-driven spiritual guide rooted in the timeless wisdom of the *Bhagavad Gita*. Created for modern seekers navigating life’s complexities, this platform offers personalized guidance, daily reflection, and the ability to connect with the deeper meaning behind ancient teachings.
