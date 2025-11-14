@@ -10,7 +10,7 @@ retina-face>=0.0.17
 
 tensorflow==2.12.0
 keras==2.12.0
-tf-keras==2.15.0  # Compatibility shim
+tf-keras>=2.17.0  # Compatibility shim
 
 google-generativeai>=0.8.5
 google-ai-generativelanguage>=0.6.15
